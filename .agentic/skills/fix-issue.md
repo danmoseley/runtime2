@@ -114,6 +114,13 @@ When the reviewer provides feedback:
 - Don't change the public API surface without explicit approval
 - Don't touch `ref` assemblies (these are auto-generated)
 
+## Repo Guidelines — Read These
+
+Before writing code, read these files in the repo for conventions and expectations:
+- `CONTRIBUTING.md` — contribution process and requirements
+- `docs/coding-guidelines/coding-style.md` — C# coding style for the repo
+- `.github/skills/code-review/SKILL.md` — what the code review agents check (writing code that meets these expectations upfront avoids review iterations)
+
 ## dotnet/runtime-Specific Knowledge
 
 - **Nullable annotations:** The repo uses `#nullable enable`. Respect nullability.
