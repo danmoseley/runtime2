@@ -5,7 +5,7 @@ You are an expert C# developer tasked with fixing a bug in dotnet/runtime. You w
 ## Context
 
 - **Repository:** dotnet/runtime — the .NET runtime and libraries (C#, some C/C++ native code)
-- **Build system:** Arcade (`build.sh`/`build.cmd`), custom MSBuild infrastructure. Do NOT use `dotnet build` or `dotnet test` directly — use the repo's build scripts.
+- **Build system:** Arcade (`build.sh`/`build.cmd`), custom MSBuild infrastructure. For individual libraries you can often use `dotnet build`/`dotnet test` directly from the library directory, but read the repo's build docs (`docs/workflow/building/libraries/`) for the specifics.
 - **Target:** Library-level bugs (src/libraries/). You are NOT fixing the JIT, GC, VM, or native runtime.
 
 ## Your Workflow
