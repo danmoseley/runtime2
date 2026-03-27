@@ -1,0 +1,104 @@
+# Golden Build — Full clr+libs build, compressed and uploaded as a GitHub Release.
+#
+# This is the foundation of the agentic pipeline: fix workflows download these
+# artifacts instead of rebuilding from scratch (saves ~30 min per fix).
+#
+# Triggers: manual dispatch + weekly schedule.
+# Also syncs fork main to upstream at the start (eon lifecycle reset).
+
+name: Golden Build
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6:00 UTC
+
+permissions:
+  contents: write  # push to main, create releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Free disk space
+        run: |
+          echo "=== Disk before cleanup ==="
+          df -h /
+          # Remove things we don't need to maximize space for the build
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/local/graalvm /usr/local/.ghcup /usr/local/share/powershell
+          sudo rm -rf /opt/hostedtoolcache/CodeQL /opt/hostedtoolcache/go /opt/hostedtoolcache/node
+          sudo docker image prune --all --force 2>/dev/null || true
+          echo "=== Disk after cleanup ==="
+          df -h /
+
+      - name: Sync fork main to upstream
+        run: |
+          git clone --depth=1 https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git .
+          git remote add upstream https://github.com/dotnet/runtime.git
+          git fetch upstream main
+          git fetch origin agentic/infra
+
+          # Reset main to upstream
+          git checkout main
+          git reset --hard upstream/main
+
+          # Re-apply our infra files
+          git merge origin/agentic/infra --no-edit
+
+          # Push (force-with-lease is safe — nobody else uses this fork)
+          git push origin main --force-with-lease
+
+      - name: Build clr+libs (Release)
+        run: |
+          echo "=== Starting Release build ==="
+          ./build.sh -subset clr+libs -c Release
+          echo "=== Disk after Release build ==="
+          df -h /
+
+      - name: Build libs (Debug)
+        run: |
+          echo "=== Starting Debug build ==="
+          ./build.sh -subset libs -c Debug
+          echo "=== Disk after Debug build ==="
+          df -h /
+
+      - name: Compress artifacts
+        run: |
+          echo "=== Artifact sizes ==="
+          du -sh artifacts/
+          du -sh artifacts/bin/ artifacts/obj/ 2>/dev/null || true
+
+          # Compress with zstd max compression (slow compress, fast decompress)
+          tar cf - artifacts/ | zstd --ultra -22 -T0 -o golden-artifacts.tar.zst
+
+          echo "=== Compressed size ==="
+          ls -lh golden-artifacts.tar.zst
+
+          # Split for GitHub release 2GB-per-asset limit
+          split -b 1900m golden-artifacts.tar.zst golden-part-
+
+          echo "=== Split parts ==="
+          ls -lh golden-part-*
+
+      - name: Upload as GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMIT_SHORT=$(git rev-parse --short HEAD)
+          COMMIT_FULL=$(git rev-parse HEAD)
+          TAG="golden-$(date +%s)"
+          DATE=$(date +%Y-%m-%d)
+
+          # Create new release FIRST (so there's never a gap)
+          gh release create "$TAG" golden-part-* \
+            --title "Golden build $DATE @ $COMMIT_SHORT" \
+            --notes "Built from upstream/main $COMMIT_FULL" \
+            --latest
+
+          # Delete older golden-* releases (keep only latest)
+          gh release list --json tagName,isLatest \
+            -q '.[] | select(.tagName | startswith("golden-")) | select(.isLatest == false) | .tagName' \
+            | xargs -r -I{} gh release delete {} --yes --cleanup-tag
+
+          echo "=== Release created: $TAG ==="
