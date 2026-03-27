@@ -81,6 +81,36 @@ Also build Debug if the library has Debug-specific behavior (Debug.Assert, condi
 - Clear commit message: what the fix does and why, referencing the issue
 - Do NOT include `Fixes #` or `Closes #` — use `Related: dotnet/runtime#NNNNN`
 
+## What You Report Back
+
+You are a sub-agent spawned by an orchestrator workflow. The orchestrator creates the PR and posts the summary. You focus on producing code, but you must also return structured information so the orchestrator can build a good PR description for the human reviewer.
+
+After completing your fix (or deciding to abandon), output a structured report:
+
+```
+## Fix Agent Report
+
+**Status:** Fixed | Abandoned | Already-Fixed
+**Confidence:** High | Medium | Low
+**Summary:** [1-2 sentences: what you fixed and how]
+
+### Root Cause Analysis
+[What you found — the bug mechanism, the relevant code path, why it happens]
+
+### Approach
+[What you changed and why. If you considered alternatives, briefly note why you chose this one.]
+
+### Test Strategy
+[What test(s) you added/modified and what they validate. Why you believe the test fails without the fix.]
+
+### Investigation Notes
+[Anything else useful: related issues found, code paths explored, things you tried that didn't work, concerns about the fix]
+```
+
+This report goes into collapsed `<details>` in the PR — the human only reads it if they want to dig deeper. Keep it factual and concise, but include enough that a domain expert could understand your reasoning.
+
+**Do NOT create the PR yourself.** The orchestrator handles PR creation, labeling, and the summary comment. You just commit code to the branch and return this report.
+
 ## Handling CI Failures
 
 When CI fails after your fix:
