@@ -41,9 +41,9 @@ All aspects pass, correctness is sound, tests are adequate. State: "LGTM — rea
 
 **Option B — Actionable Feedback:**
 List specific changes needed, in priority order. Be precise:
-- ❌ "The null check on line 47 should use `is not null` pattern, not `!= null`" 
-- ❌ "Test `ParseInvalidInput_ReturnsDefault` passes without the fix — it doesn't test the bug"
-- ✅ "In `ProcessBuffer`, line 82: the span slice should be `[..length]` not `[..count]` — `count` is the iteration variable, not the buffer length"
+- "The null check on line 47 should use `is not null` pattern, not `!= null`"
+- "Test `ParseInvalidInput_ReturnsDefault` passes without the fix — it doesn't test the bug"
+- "In `ProcessBuffer`, line 82: the span slice should be `[..length]` not `[..count]` — `count` is the iteration variable, not the buffer length"
 
 **Option C — Abandon:**
 The fix is fundamentally wrong, the issue is too complex for automated fixing, or the risk outweighs the benefit. Explain why specifically. Common abandon reasons:
