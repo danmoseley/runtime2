@@ -34,7 +34,7 @@ dotnet/runtime has strict compatibility requirements. Changes that seem harmless
 1. **Read the diff carefully.** Identify every changed public API surface.
 2. **Check the `ref` assembly** (`ref/<Library>/` directory) — if the fix changes a public signature, the ref assembly must also be updated. If it's NOT updated, that's a signal the change shouldn't affect public API.
 3. **Search for callers within the repo:** `grep -r "MethodName" src/libraries/` — would any call sites break?
-4. **Check the upstream issue.** Does it explicitly mention an API change? Is there an `api-approved` label?
+4. **Check the upstream issue.** Does it explicitly mention an API change? Is there an `api-approved` label? **Any public API addition or change without `api-approved` is a hard ❌ block** — this is non-negotiable in dotnet/runtime.
 5. **Consider downstream consumers outside the repo.** NuGet package consumers call these APIs.
 
 ## Output Format

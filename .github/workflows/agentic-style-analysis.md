@@ -3,7 +3,8 @@ description: "Analyze modern dotnet/runtime libraries to discover implicit codin
 
 permissions:
   contents: read
-  issues: write
+  issues: read
+  pull-requests: read
 
 network:
   allowed:

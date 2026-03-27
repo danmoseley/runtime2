@@ -2,9 +2,9 @@
 description: "Fix a dotnet/runtime issue: create branch, implement fix, run CI, review, create PR"
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
+  issues: read
+  pull-requests: read
 
 network:
   allowed:
@@ -22,15 +22,10 @@ checkout:
 safe-outputs:
   create-pull-request:
     max: 1
-    base: "main"
   add-comment:
     max: 10
-    target: "created"
-    discussions: false
-    issues: true
-  add-label:
+  add-labels:
     max: 10
-    target: "created"
   create-issue:
     max: 1
 
@@ -77,6 +72,12 @@ You are running in a personal fork of dotnet/runtime. The repo is checked out an
 
 3. **Already-fixed check:** Look at the code paths mentioned in the issue. If the described bug appears to already be fixed in the current code, note this — you may be able to close early with an `ai:rejected-early` label.
 
+4. **Deduplication check:** Before any code work, search for existing PRs that reference this issue:
+   - In this fork: `gh pr list --search "${{ inputs.issue_number }}"`
+   - In upstream: `gh pr list --repo ${{ inputs.upstream_repo }} --search "${{ inputs.issue_number }}"`
+   - Check for branches named `fix/issue-${{ inputs.issue_number }}`
+   If an open PR or active branch already exists, stop early with `ai:rejected-early` and note the existing work.
+
 ## Phase 2: Read the Guidelines
 
 Before writing any code, read these files from the repo:
@@ -117,6 +118,8 @@ Follow the conventions described in these documents.
    Related: ${{ inputs.upstream_repo }}#${{ inputs.issue_number }}
    ```
 
+6. **Diff-size check:** Run `git diff --stat origin/main` and count changed files (excluding test files). If you've modified more than **5 source files**, stop and critically re-evaluate — you may be refactoring instead of fixing. If the fix genuinely requires broad changes, note it as `ai:longer-review`.
+
 ## Phase 4: Build and Test
 
 Download golden artifacts and build/test your changes:
@@ -147,6 +150,19 @@ cat /tmp/golden-part-* | zstd -d | tar xf - -C .
 - Fix the issue in your code
 - Rebuild and retest
 - You have up to 3 attempts before moving to the review phase or abandoning
+
+**Verify your new test catches the bug:**
+After tests pass with your fix, verify the test would fail without it:
+```bash
+git stash push -m "fix" -- src/libraries/${{ inputs.library }}/src/
+./build.sh -subset libs -c Release -projects src/libraries/${{ inputs.library }}/src/*.csproj
+./build.sh -subset libs.tests -test -c Release -projects ${{ inputs.test_project }} -- --filter "YourNewTestName"
+# This MUST fail. If it passes, your test doesn't test the bug.
+git stash pop
+./build.sh -subset libs -c Release -projects src/libraries/${{ inputs.library }}/src/*.csproj
+```
+
+Also confirm your test name appears as `Passed` (not `Skipped`) in the test output — `[ConditionalFact]` tests can be silently skipped.
 
 ## Phase 5: Self-Review
 

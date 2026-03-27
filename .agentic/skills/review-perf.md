@@ -38,7 +38,7 @@ These skills contain detailed guidance for performance analysis in .NET:
 ### Patterns to Watch
 - `LINQ` in `src/libraries/System.Private.CoreLib/` — almost always wrong there
 - `async`/`await` in paths that could be synchronous (adds state machine allocation)
-- `try/catch` in hot paths (exception filtering has overhead even when no exception is thrown on some runtimes)
+- `try/catch` in hot paths — while modern CoreCLR (.NET 6+) has zero-cost exception handling when no exception is thrown, `try/catch` blocks can still inhibit certain JIT optimizations (e.g., inlining, enregistration). Flag only in the most critical hot paths.
 - `Dictionary` with default comparer when `StringComparer.Ordinal` would be faster
 
 ## How to Review

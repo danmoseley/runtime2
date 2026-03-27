@@ -25,6 +25,7 @@ You are a specialized reviewer checking whether an AI-generated fix to dotnet/ru
 - Spaces around binary operators
 - No trailing whitespace
 - Single blank line between methods
+- Sorted using statements with no unused usings. No unnecessary type qualifiers (eg., "System.Text" in front of `StringBuilder`)
 
 ### Language Patterns
 - `is not null` instead of `!= null` (pattern matching preferred in newer code)
@@ -34,11 +35,12 @@ You are a specialized reviewer checking whether an AI-generated fix to dotnet/ru
 - Prefer `ReadOnlySpan<char>` over `string` for internal parsing when the surrounding code does so
 - Expression-bodied members (`=>`) when the surrounding code uses them for simple getters/methods
 
-### Error Handling
+### Error Handling Style
 - Use `ArgumentException`, `ArgumentNullException`, `ArgumentOutOfRangeException` with parameter names
 - Use `ThrowHelper` pattern if the library has one
-- Don't catch `Exception` broadly — catch specific types
-- Resource cleanup via `using` or `try/finally`, matching the existing patterns
+- Match the existing patterns in the file
+
+*Note: Error handling **correctness** (catching too broadly, missing resource cleanup) is reviewed by the correctness reviewer, not here. This section only covers the **style** of exception usage.*
 
 ### Test Conventions
 - `[Fact]` for single-case tests, `[Theory]` with `[InlineData]`/`[MemberData]` for parameterized

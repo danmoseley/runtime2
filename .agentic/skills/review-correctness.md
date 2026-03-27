@@ -16,6 +16,7 @@ You are the **sole voice** the fix agent hears. The fix agent never sees raw asp
 - **Does the fix actually address the reported issue?** Re-read the issue. Does the code change match the described problem and expected behavior?
 - **Edge cases:** null inputs, empty collections, boundary values, integer overflow, concurrent access
 - **Control flow:** Are all code paths handled? Any early returns that skip cleanup? Any exception paths that leak resources?
+- **Error handling:** Don't catch `Exception` broadly — catch specific types. Resource cleanup via `using` or `try/finally`. Check that exception handling correctness hasn't been weakened.
 - **Test quality:** Does the test actually exercise the bug scenario? Would it fail without the fix? Is it testing the right thing or just testing that code doesn't throw?
 - **Regression risk:** Could this change break existing callers? Check the method's callers within the library.
 
@@ -30,9 +31,8 @@ Read each aspect reviewer's verdict (✅ Pass / ⚠️ Concern / ❌ Fail):
 | 3 | Correctness (yours) | Your own assessment — highest priority for feedback |
 | 4 | Performance ⚠️/❌ | Important for hot paths, advisory otherwise |
 | 5 | Style ⚠️ | Fix if easy, defer if contentious |
-| 6 | Alternatives | Note if genuinely better, ignore if marginal |
 
-**When aspect reviewers disagree:** Explain the tradeoff briefly and make a judgment call. Don't ask the fix agent to resolve a conflict you can resolve.
+**When aspect reviewers disagree:** Use this policy: in hot paths (high-throughput, per-item processing), prefer the perf-optimal approach. In cold code (setup, error handling, rare paths), prefer matching surrounding style. Explain the tradeoff briefly and make a judgment call. Don't ask the fix agent to resolve a conflict you can resolve.
 
 ### 3. Produce Your Verdict
 
@@ -75,7 +75,6 @@ The fix is fundamentally wrong, the issue is too complex for automated fixing, o
 | Breaking change | ✅/⚠️/❌ | [brief] |
 | Performance | ✅/⚠️/❌ | [brief] |
 | Style | ✅/⚠️/❌ | [brief] |
-| Alternatives | ✅/⚠️/❌ | [brief] |
 
 ### Confidence Assessment
 [ai:high-confidence / ai:medium-confidence / ai:low-confidence — and why]

@@ -28,6 +28,7 @@ For issues passing all hard filters, evaluate:
 - Is the fix likely contained within one library?
 - Can the fix be validated with unit tests runnable on Linux?
 - Is the code well-structured enough for an AI to navigate?
+- **Watch for "looks easy but is hard" traps:** Issues involving threading, concurrency, reentrancy, encoding edge cases, or backward-compatibility constraints may look like simple 1-file fixes but require deep domain knowledge. Keywords to watch: "race condition", "deadlock", "thread-safe", "concurrent", "reentrant", "culture-sensitive", "encoding", "backward compat". If the issue involves these, lower confidence even if the scope looks small.
 
 **Value (should we fix this?):**
 - Is this a real user-facing bug (not an internal refactoring request)?

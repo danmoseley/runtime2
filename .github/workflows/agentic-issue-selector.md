@@ -20,8 +20,8 @@ checkout:
   fetch-depth: 1
 
 safe-outputs:
-  noop:
-    report-as-issue: true
+  create-issue:
+    max: 1
 
 on:
   workflow_dispatch:
@@ -106,7 +106,7 @@ Select up to **${{ inputs.max_issues }}** issues, prioritizing:
 
 ## Step 6: Report Results
 
-Use the `noop` safe output to report your selections. Format:
+Use the `create-issue` safe output to report your selections. Format:
 
 ```markdown
 # Issue Selection Report

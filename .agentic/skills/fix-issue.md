@@ -52,8 +52,33 @@ This is the single most important quality criterion. A test that passes on both 
 - Test the specific scenario from the issue, not a generic case
 - If the issue has a repro, your test should be recognizably derived from it
 - Name tests descriptively: `MethodName_Scenario_ExpectedBehavior`
+- **Do NOT use `[ConditionalFact]` or `[ConditionalTheory]`** on your new test unless the bug is inherently platform-specific. These attributes silently skip tests — a skipped test shows "0 failures" because it never ran, not because it passed.
+- After running tests, verify your new test name appears in the output with `Passed` — not `Skipped` or absent.
 
-### 5. Build and Validate
+### 5. Verify Test Fails Without Fix
+
+**This step is non-optional.** Before proceeding, verify your new test actually catches the bug:
+
+```bash
+# Stash the src/ changes (keep test changes)
+git stash push -m "fix" -- src/libraries/<Library>/src/
+
+# Rebuild the library WITHOUT your fix
+./build.sh -subset libs -c Release \
+  -projects src/libraries/<Library>/src/*.csproj
+
+# Run ONLY your new test — it should FAIL
+./build.sh -subset libs.tests -test -c Release \
+  -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
+  -- --filter "YourNewTestMethodName"
+
+# Restore your fix
+git stash pop
+```
+
+If the test passes without your fix, it does not test the bug. Rewrite the test.
+
+### 6. Build and Validate
 
 Build only what you changed:
 ```bash
@@ -75,7 +100,7 @@ Also build Debug if the library has Debug-specific behavior (Debug.Assert, condi
   -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj
 ```
 
-### 6. Commit
+### 7. Commit
 
 - One logical commit per fix (may include test + production code together)
 - Clear commit message: what the fix does and why, referencing the issue
@@ -136,6 +161,7 @@ When the reviewer provides feedback:
 ## What NOT to Do
 
 - Don't modify files outside the target library unless absolutely necessary
+- **If the root cause is in a different library**, abandon with `ai:rejected-early` and clearly identify which library contains the actual bug. Do not apply a workaround in the wrong library.
 - Don't add NuGet package references
 - Don't change project files (.csproj) unless the fix requires it
 - Don't add `#pragma warning disable` to suppress legitimate warnings
