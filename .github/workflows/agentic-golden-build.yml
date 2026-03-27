@@ -34,10 +34,11 @@ jobs:
 
       - name: Sync fork main to upstream
         run: |
-          git clone --depth=1 https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git .
+          # Blobless clone: gets full commit graph (needed for merge) but defers
+          # file content downloads until checkout. ~1-2 min overhead, but merge works.
+          git clone --filter=blob:none https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git .
           git remote add upstream https://github.com/dotnet/runtime.git
-          git fetch upstream main
-          git fetch origin agentic/infra
+          git fetch --filter=blob:none upstream main
 
           # Reset main to upstream
           git checkout main
