@@ -52,6 +52,10 @@ jobs:
           # Push (force-with-lease is safe — nobody else uses this fork)
           git push origin main --force-with-lease
 
+      - name: Install build dependencies
+        run: |
+          sudo eng/common/native/install-dependencies.sh linux
+
       - name: Build clr+libs (Release)
         run: |
           echo "=== Starting Release build ==="
