@@ -37,6 +37,8 @@ jobs:
           # Blobless clone: gets full commit graph (needed for merge) but defers
           # file content downloads until checkout. ~1-2 min overhead, but merge works.
           git clone --filter=blob:none https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add upstream https://github.com/dotnet/runtime.git
           git fetch --filter=blob:none upstream main
 
