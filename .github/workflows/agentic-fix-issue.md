@@ -9,6 +9,7 @@ permissions:
 network:
   allowed:
     - defaults
+    - dotnet
 
 tools:
   github:
