@@ -86,25 +86,17 @@ You are running in a personal fork of dotnet/runtime. The repo is checked out an
 
 Before any expensive work, validate inputs. STOP with `noop` if any check fails.
 
-1. **Verify the issue is open and has correct labels:** Read `${{ inputs.upstream_repo }}#${{ inputs.issue_number }}` using GitHub MCP tools (`github-mcp-server-issue_read` with owner=`dotnet`, repo=`runtime`). If MCP fails, use `web-fetch` on the REST API URL (returns JSON, easy to parse):
+1. **Verify the issue is open:** Read `${{ inputs.upstream_repo }}#${{ inputs.issue_number }}` using GitHub MCP tools (`github-mcp-server-issue_read` with owner=`dotnet`, repo=`runtime`). If MCP fails, use `web-fetch` on the REST API URL (returns JSON, easy to parse):
    ```
    web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}
    ```
    From the JSON response, check the `state` field (must be `"open"`) and the `labels` array (each has a `name` field). If the issue is closed, stop with `ai:rejected-early` label and reason "Issue is already closed."
 
-2. **Verify the library path exists:**
-   ```bash
-   if [ ! -d "src/libraries/${{ inputs.library }}" ]; then
-     echo "FATAL: src/libraries/${{ inputs.library }}/ does not exist"
-     exit 1
-   fi
-   ```
-
-3. **Check area label (soft match):** The issue's `area-*` label should *roughly* correspond to `${{ inputs.library }}`, but area labels are not always accurate — they're applied by humans and can be wrong or ambiguous. Use the label as a hint for where to start looking. Do NOT reject the issue solely because the label doesn't exactly match. If the issue clearly belongs to a completely unrelated area (e.g., dispatched as `System.IO` but actually about `System.Net.Http`), STOP with `ai:rejected-early`.
-
-4. **Verify issue type:** If the issue is tagged `api-suggestion`, `api-needs-work`, `api-ready-for-review`, `tracking`, or `epic`, STOP with `ai:rejected-early` — these are not actionable (API proposals still in review, tracking epics, etc.). Issues tagged `api-approved` **are** actionable and should be treated like bugs with a well-defined spec.
-
-5. **Check platform constraints:** This agent runs on **Linux x64**. If the issue is tagged `os-windows`, `os-mac`, or `os-ios`/`os-android`/`os-tvos` (without also being tagged `os-linux`), or if the issue description clearly states it only reproduces on a non-Linux platform, STOP with `ai:rejected-early` — the fix cannot be validated in this sandbox. Issues with no OS label or with `os-linux` are fine to proceed.
+2. **Check issue labels for rejection signals:**
+   - If tagged `api-suggestion`, `api-needs-work`, `api-ready-for-review`, `tracking`, or `epic`, STOP with `ai:rejected-early` — these are not actionable.
+   - Issues tagged `api-approved` **are** actionable and should be treated like bugs with a well-defined spec.
+   - If tagged `os-windows`, `os-mac`, or `os-ios`/`os-android`/`os-tvos` (without also `os-linux`), or if the issue clearly only reproduces on a non-Linux platform, STOP with `ai:rejected-early` — this agent runs on **Linux x64** and the fix cannot be validated.
+   - Area labels (`area-System.*`) and the `${{ inputs.library }}` input are **rough hints** about where to start looking. They are often inaccurate. Do NOT use them as hard validation — you will discover the actual fix location yourself by reading the issue and searching the code.
 
 > **Note on Phase 0:** If you cannot verify labels/status from either MCP or the API, log a warning and proceed to Phase 1. Do NOT stop with `missing_data` — Phase 1 will read the full issue content and you can verify labels then.
 
