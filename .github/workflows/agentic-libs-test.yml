@@ -1,7 +1,7 @@
 # Library Tests — Download golden artifacts, rebuild one library, run its tests.
 #
 # Used by the agentic fix pipeline for per-fix CI. Also useful for manual
-# validation. Runs Release and Debug in parallel.
+# validation. Release only (golden build doesn't include Debug testhost).
 
 name: Library Tests
 on:
@@ -18,11 +18,11 @@ permissions:
   contents: read
 
 jobs:
-  test-release:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
 
       - name: Free disk space
         run: |
@@ -50,36 +50,3 @@ jobs:
       - name: Run tests (Release)
         run: |
           ./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Release
-
-  test-debug:
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
-          sudo rm -rf /usr/local/graalvm /usr/local/.ghcup /usr/local/share/powershell
-          sudo docker image prune --all --force 2>/dev/null || true
-
-      - name: Download golden artifacts
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "=== Downloading golden release ==="
-          GOLDEN_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
-          echo "Using golden release: $GOLDEN_TAG"
-          gh release download "$GOLDEN_TAG" --repo ${{ github.repository }} --pattern 'golden-part-*' --dir /tmp
-          echo "=== Decompressing ==="
-          cat /tmp/golden-part-* | zstd -d | tar xf - -C .
-          echo "=== Done ==="
-          df -h /
-
-      - name: Build changed library (Debug)
-        run: |
-          ./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/*.csproj -c Debug
-
-      - name: Run tests (Debug)
-        run: |
-          ./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Debug
