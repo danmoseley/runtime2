@@ -76,8 +76,8 @@ jobs:
           du -sh artifacts/
           du -sh artifacts/bin/ artifacts/obj/ 2>/dev/null || true
 
-          # Compress with zstd max compression (slow compress, fast decompress)
-          tar cf - artifacts/ | zstd --ultra -22 -T0 -o golden-artifacts.tar.zst
+          # Compress with zstd level 12 (good balance of speed and size)
+          tar cf - artifacts/ | zstd -12 -T0 -o golden-artifacts.tar.zst
 
           echo "=== Compressed size ==="
           ls -lh golden-artifacts.tar.zst
