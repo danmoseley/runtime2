@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: write  # push to main, create releases
-  workflows: write  # push workflow files from agentic/infra branch
 
 jobs:
   build:
@@ -43,15 +42,18 @@ jobs:
           git remote add upstream https://github.com/dotnet/runtime.git
           git fetch --filter=blob:none upstream main
 
-          # Reset main to upstream
+          # Reset to upstream main
           git checkout main
           git reset --hard upstream/main
 
-          # Re-apply our infra files
+          # Re-apply our infra files (.agentic/, docs, etc.)
           git merge origin/agentic/infra --no-edit
 
-          # Push (force-with-lease is safe — nobody else uses this fork)
-          git push origin main --force-with-lease
+          # NOTE: We do NOT push to main here. GITHUB_TOKEN cannot push workflow
+          # files (.github/workflows/*). The fork's main is synced manually.
+          # Golden build just needs the merged state locally for building.
+          # The GOLDEN_COMMIT_SHA file tells the fix workflow which commit to use.
+          echo "Building from upstream/main: $(git rev-parse upstream/main)"
 
       - name: Install build dependencies
         run: |
