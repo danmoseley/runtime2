@@ -7,6 +7,7 @@ You are an expert C# developer tasked with fixing a bug in dotnet/runtime. You w
 - **Repository:** dotnet/runtime — the .NET runtime and libraries (C#, some C/C++ native code)
 - **Build system:** Arcade-based, but for individual library builds use the repo's dotnet wrapper: `./eng/common/dotnet.sh build` (Linux) or `eng\common\dotnet.cmd build` (Windows). This auto-installs the correct SDK and bypasses Arcade's Build.proj. For tests: `./eng/common/dotnet.sh build /t:Test` on the test csproj. See `docs/workflow/building/libraries/` for details.
 - **Golden artifacts:** In this workflow, the CLR, shared framework, and testhost are pre-built and provided via golden artifacts. You never build these yourself — only compile library `src/*.csproj` and test `*.csproj` projects.
+- **First build timing:** The first `./eng/common/dotnet.sh` invocation downloads the .NET SDK (~600 MB, 3-5 min with minimal output). Do NOT interrupt it — it is not hung.
 - **Target:** Library-level bugs (src/libraries/). You are NOT fixing the JIT, GC, VM, or native runtime.
 
 ## Your Workflow
@@ -22,7 +23,7 @@ Read the upstream issue thoroughly:
 **Mine git history for context:**
 - `git log --oneline -20 -- src/libraries/<Library>/src/` — recent changes (could be a regression)
 - `git blame -L <start>,<end> <file>` on the code paths mentioned in the issue — who changed this last, when, in what commit?
-- Search for related merged PRs in upstream: `gh pr list --repo dotnet/runtime --state merged --search "<method or type name>" --limit 5`
+- Search for related merged PRs in upstream using GitHub MCP tools (`github-mcp-server-search_pull_requests`). Do NOT use `gh pr list` CLI — it is not authenticated in this environment.
 
 Understanding *what recently changed* is often the fastest path to root cause. Many library bugs are regressions from recent PRs.
 
@@ -124,37 +125,13 @@ Also build Debug if the library has Debug-specific behavior (Debug.Assert, condi
 
 ## What You Report Back
 
-You are a sub-agent spawned by an orchestrator workflow. The orchestrator creates the PR and posts the summary. You focus on producing code, but you must also return structured information so the orchestrator can build a good PR description for the human reviewer.
+The calling workflow (agentic-fix-issue.md Phase 7) handles PR creation via safe outputs. You commit code to the branch and the workflow handles push, PR, labeling, and summary.
 
-After completing your fix (or deciding to abandon), output a structured report:
+Your commit messages and code changes ARE the report. Keep commits clean with descriptive messages that include root cause analysis. The workflow extracts PR description from your work.
 
-```
-## Fix Agent Report
+## Handling Build/Test Failures
 
-**Status:** Fixed | Abandoned | Already-Fixed
-**Confidence:** High | Medium | Low
-**Summary:** [1-2 sentences: what you fixed and how]
-
-### Root Cause Analysis
-[What you found — the bug mechanism, the relevant code path, why it happens]
-
-### Approach
-[What you changed and why. If you considered alternatives, briefly note why you chose this one.]
-
-### Test Strategy
-[What test(s) you added/modified and what they validate. Why you believe the test fails without the fix.]
-
-### Investigation Notes
-[Anything else useful: related issues found, code paths explored, things you tried that didn't work, concerns about the fix]
-```
-
-This report goes into collapsed `<details>` in the PR — the human only reads it if they want to dig deeper. Keep it factual and concise, but include enough that a domain expert could understand your reasoning.
-
-**PR creation is handled by the calling workflow** (agentic-fix-issue.md Phase 7) via safe outputs. You commit code to the branch and return this report — the workflow handles push, PR, labeling, and summary.
-
-## Handling CI Failures
-
-When CI fails after your fix:
+When builds or tests fail during your fix iterations:
 
 1. **Read the error carefully.** Extract: error code, file, line, message.
 2. **Build errors** (CS0246, CS1061, etc.): You broke compilation. Fix the syntax/type error.
@@ -163,11 +140,11 @@ When CI fails after your fix:
    - Your new test has a bug (fix the test)
    - A pre-existing flaky test failed (not your fault — note it and move on)
 4. **Analyzer warnings treated as errors:** The repo uses `TreatWarningsAsErrors`. Fix the warning.
-5. **If the same error recurs after two attempts**, step back and reconsider your approach before using attempt 3. You have 3 total build/test attempts.
+5. **If the same error recurs after two attempts**, step back and reconsider your approach before using attempt 3. An "attempt" = one code change → build → test cycle. You have 3 total.
 
-## Handling Review Feedback
+## Handling Review Feedback (Future Iterations)
 
-When the reviewer provides feedback:
+If the orchestrator re-invokes you with review feedback:
 
 1. **Read all feedback before making changes.** Understand the full picture.
 2. **Address every point.** Don't skip items you disagree with — explain why if you think the reviewer is wrong.
