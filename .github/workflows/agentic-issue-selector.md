@@ -135,7 +135,7 @@ Use the `create-issue` safe output to report your selections. Format:
 ## Dispatch Commands
 
 To fix these issues, run:
-gh workflow run agentic-fix-issue.md --repo ${{ github.repository }} \
+gh workflow run agentic-fix-issue.md --repo danmoseley/runtime \
   -f issue_number=NNNNN \
   -f library=System.Foo \
   -f test_project=src/libraries/System.Foo/tests/...csproj
@@ -145,6 +145,9 @@ gh workflow run agentic-fix-issue.md --repo ${{ github.repository }} \
 
 ## Guidelines
 
-- **Quality over quantity.** Selecting 3 high-confidence issues is better than 5 questionable ones.
+- **Quality over quantity.** Selecting 3 high-confidence issues is better than 5 questionable ones. It is OK to return **fewer** than `${{ inputs.max_issues }}` if hard filters or quality rules would be violated — never pad the list with marginal candidates.
+- **Difficulty tiers:** `easy` = 1-2 files changed, clear repro, contained to one library. `medium` = 2-4 files, may need cross-type investigation. `hard` = broad impact, subtle concurrency/perf bugs.
 - **Follow human guidance.** The `difficulty` and `extra_guidance` inputs tell you what the human wants — respect them over default heuristics.
 - **Log every rejection** with a reason — this data helps tune selection criteria.
+- **Checking "no linked PRs":** Search for the `in-pr` label on the issue. Also search PRs in `${{ inputs.upstream_repo }}` referencing the issue number. If either finds active PR work, reject the issue.
+- **Dispatch commands:** Use the concrete fork repo name (`danmoseley/runtime`) in dispatch commands, not `${{ github.repository }}` (which is only valid inside Actions).
