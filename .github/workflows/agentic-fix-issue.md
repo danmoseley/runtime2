@@ -70,7 +70,11 @@ You are running in a personal fork of dotnet/runtime. The repo is checked out an
    - Any hints from maintainers about root cause or preferred approach
    - The `area-*` label (should match `${{ inputs.library }}`)
 
-3. **Already-fixed check:** Look at the code paths mentioned in the issue. If the described bug appears to already be fixed in the current code, note this — you may be able to close early with an `ai:rejected-early` label.
+3. **Mine git history** for context:
+   ```bash
+   git log --oneline -20 -- src/libraries/${{ inputs.library }}/src/
+   ```
+   Check if this could be a regression from a recent commit. Also search for related merged PRs in upstream: `gh pr list --repo ${{ inputs.upstream_repo }} --state merged --search "<method or type name>" --limit 5`
 
 4. **Deduplication check:** Before any code work, search for existing PRs that reference this issue:
    - In this fork: `gh pr list --search "${{ inputs.issue_number }}"`
@@ -88,7 +92,7 @@ Before writing any code, read these files from the repo:
 
 Follow the conventions described in these documents.
 
-## Phase 3: Investigate and Fix
+## Phase 3: Investigate, Hypothesize, and Test First
 
 1. **Create a fix branch:**
    ```bash
@@ -99,30 +103,47 @@ Follow the conventions described in these documents.
    - Search for types and methods mentioned in the issue
    - Read full source files — understand the context, not just the bug site
    - Check callers, base classes, interfaces
+   - Use `git blame` on the relevant code paths to understand recent changes
 
-3. **Implement the fix:**
+3. **Formulate your hypothesis** — before writing any code, state clearly:
+   - What you believe the bug is (mechanism, location)
+   - What the fix should be
+   - What a failing test would look like
+
+4. **Write the test FIRST** in the test project at `${{ inputs.test_project }}`:
+   - Write a test that reproduces the bug described in the issue
+   - Follow existing test patterns in the file (xUnit, naming, assertion style)
+   - Test the specific scenario from the issue
+
+5. **Run the test on current main — it MUST fail:**
+   ```bash
+   ./build.sh -subset libs -c Release \
+     -projects src/libraries/${{ inputs.library }}/src/*.csproj
+   ./build.sh -subset libs.tests -test -c Release \
+     -projects ${{ inputs.test_project }} -- --filter "YourNewTestName"
+   ```
+   If the test **passes**, the bug is already fixed → stop early with `ai:rejected-early`. This saves an entire run's worth of effort.
+
+6. **Implement the fix:**
    - Minimal change — fix the reported bug, nothing more
    - Match surrounding code style and patterns
    - Handle edge cases (null, empty, boundary values)
    - No breaking changes to public API
 
-4. **Write or update tests** in the test project at `${{ inputs.test_project }}`:
-   - The test MUST fail without the fix and pass with the fix
-   - Follow existing test patterns in the file (xUnit, naming, assertion style)
-   - Test the specific scenario from the issue
+7. **Verify the test now passes** with your fix applied.
 
-5. **Commit** with a clear message:
+8. **Commit** with a clear message:
    ```
    Fix <brief description>
 
    Related: ${{ inputs.upstream_repo }}#${{ inputs.issue_number }}
    ```
 
-6. **Diff-size check:** Run `git diff --stat origin/main` and count changed files (excluding test files). If you've modified more than **5 source files**, stop and critically re-evaluate — you may be refactoring instead of fixing. If the fix genuinely requires broad changes, note it as `ai:longer-review`.
+9. **Diff-size check:** Run `git diff --stat origin/main` and count changed files (excluding test files). If you've modified more than **5 source files**, stop and critically re-evaluate — you may be refactoring instead of fixing. If the fix genuinely requires broad changes, note it as `ai:longer-review`.
 
-## Phase 4: Build and Test
+## Phase 4: Full Build and Test
 
-Download golden artifacts and build/test your changes:
+Download golden artifacts and run the complete test suite:
 
 ```bash
 # Download golden build artifacts
@@ -133,7 +154,7 @@ cat /tmp/golden-part-* | zstd -d | tar xf - -C .
 ./build.sh -subset libs -c Release \
   -projects src/libraries/${{ inputs.library }}/src/*.csproj
 
-# Run tests (Release)
+# Run full tests (Release)
 ./build.sh -subset libs.tests -test -c Release \
   -projects ${{ inputs.test_project }}
 
@@ -151,18 +172,7 @@ cat /tmp/golden-part-* | zstd -d | tar xf - -C .
 - Rebuild and retest
 - You have up to 3 attempts before moving to the review phase or abandoning
 
-**Verify your new test catches the bug:**
-After tests pass with your fix, verify the test would fail without it:
-```bash
-git stash push -m "fix" -- src/libraries/${{ inputs.library }}/src/
-./build.sh -subset libs -c Release -projects src/libraries/${{ inputs.library }}/src/*.csproj
-./build.sh -subset libs.tests -test -c Release -projects ${{ inputs.test_project }} -- --filter "YourNewTestName"
-# This MUST fail. If it passes, your test doesn't test the bug.
-git stash pop
-./build.sh -subset libs -c Release -projects src/libraries/${{ inputs.library }}/src/*.csproj
-```
-
-Also confirm your test name appears as `Passed` (not `Skipped`) in the test output — `[ConditionalFact]` tests can be silently skipped.
+Confirm your new test name appears as `Passed` (not `Skipped`) in the test output — `[ConditionalFact]` tests can be silently skipped.
 
 ## Phase 5: Self-Review
 

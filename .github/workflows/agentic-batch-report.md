@@ -74,6 +74,17 @@ Calculate and report:
 | ai:failed | N | ... |
 | ai:rejected-early | N | ... |
 
+### Confidence Calibration Table
+Compare the **predicted** confidence at PR creation time against **actual** outcomes. This is the most important diagnostic for tuning the pipeline:
+
+| Predicted Confidence | Total | Merged | Abandoned | Actual Success Rate |
+|---------------------|-------|--------|-----------|---------------------|
+| High | N | N | N | N% |
+| Medium | N | N | N | N% |
+| Low | N | N | N | N% |
+
+If high-confidence predictions have a low actual success rate, the fix agent is overconfident — tighten criteria. If low-confidence predictions often succeed, the agent is underconfident — relax criteria or improve its self-assessment.
+
 ### Efficiency
 - Total issues attempted
 - Success rate (ai:ready-for-human / total)

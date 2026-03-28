@@ -16,7 +16,7 @@ tools:
     toolsets: [default]
 
 checkout:
-  fetch-depth: 1
+  fetch-depth: 0  # Full history needed for git blame/log temporal analysis
 
 safe-outputs:
   create-issue:
@@ -58,6 +58,13 @@ Take careful note of everything already documented. You will ONLY report pattern
 For each library in: **${{ inputs.libraries }}**
 
 The source code lives under `src/libraries/{LibraryName}/src/`. Use shell commands (`find`, `grep`, `head`, `wc`) to analyze patterns. Do NOT try to read entire files — use targeted extraction.
+
+**Important: Use temporal weighting.** Old code may reflect legacy patterns, not current conventions. For each library, first identify recently-written/modified files:
+```bash
+# Find files with substantial changes in the last 2 years
+git log --since="2 years ago" --diff-filter=AM --name-only --pretty=format: -- src/libraries/{lib}/src/*.cs | sort -u > /tmp/{lib}_recent_files.txt
+```
+Prefer extracting patterns from these recent files. When a pattern appears in both old and new code, that's higher confidence. When it appears only in old code, it may be legacy — flag it with lower confidence.
 
 Analyze these specific pattern categories:
 
@@ -137,7 +144,13 @@ For each discovered pattern, classify:
 - **Strong consensus:** Appears in all but one
 - **Moderate consensus:** Appears in exactly the minimum threshold
 
-Also note any **inter-library disagreements** — where two modern libraries do things differently. These are interesting but should be flagged separately (they suggest the convention isn't settled).
+Also check **author diversity** for each pattern — a pattern used by one prolific author across 4 libraries is weaker than one used by 4 different authors:
+```bash
+git shortlog -sn -- <matching files>
+```
+Report both metrics: "4/5 libraries, 3 distinct primary authors" is much stronger than "4/5 libraries, 1 primary author."
+
+Note any **inter-library disagreements** — where two modern libraries do things differently. **These are often the most actionable findings** because they reveal decisions that haven't been standardized yet.
 
 ## Step 4: Create Report Issue
 
@@ -147,6 +160,8 @@ Use `create-issue` to publish your findings:
 
 **Body format:**
 
+Structure the report to lead with the most actionable findings:
+
 ```markdown
 # Implicit Style Conventions — Discovery Report
 
@@ -155,12 +170,30 @@ Use `create-issue` to publish your findings:
 **Patterns already in coding-style.md:** [N] (skipped)
 **New patterns discovered:** [N]
 
-## Discovered Conventions
+## 1. Inter-Library Disagreements (Most Actionable)
+
+These patterns vary between modern libraries — they need human judgment to standardize:
+
+### [Pattern Name]
+**What varies:** [concise description]
+| Library | Approach | Recent? (2yr) | Primary Authors |
+|---------|----------|---------------|----------------|
+| System.Text.Json | [approach] | Yes | [N distinct] |
+| System.Collections | [approach] | Yes | [N distinct] |
+
+**Temporal trend:** [Is newer code converging toward one approach?]
+**Suggested resolution:** [recommendation if one is clearly better]
+
+---
+
+## 2. Discovered Conventions (Stable)
 
 ### Category: [e.g., Argument Validation]
 
 **Pattern:** [concise description of the convention]
 **Consensus:** Universal / Strong / Moderate
+**Author diversity:** [N] distinct primary authors across [M] libraries
+**Temporal signal:** Legacy-and-modern / Modern-only / Legacy-only
 **Evidence:**
 - System.Text.Json: [example with file:line]
 - System.Collections: [example with file:line]
@@ -171,14 +204,10 @@ Use `create-issue` to publish your findings:
 
 ---
 
-### Category: [next]
-...
+## 3. Weak or Uncertain Signals
 
-## Inter-Library Disagreements
-
-| Pattern | Library A Style | Library B Style | Notes |
-|---------|----------------|-----------------|-------|
-| [pattern] | [approach] | [approach] | [which is newer?] |
+Patterns with moderate consensus, low author diversity, or only in legacy code:
+- [pattern]: [why it's uncertain]
 
 ## Summary
 
@@ -187,7 +216,7 @@ Use `create-issue` to publish your findings:
 2. [rule]
 ...
 
-**Needs human judgment:**
+**Needs human judgment (disagreements):**
 1. [pattern where libraries disagree]
 ...
 

@@ -18,6 +18,13 @@ Read the upstream issue thoroughly:
 - Linked issues, related PRs, referenced code
 - Labels (especially `area-*` — tells you which library)
 
+**Mine git history for context:**
+- `git log --oneline -20 -- src/libraries/<Library>/src/` — recent changes (could be a regression)
+- `git blame -L <start>,<end> <file>` on the code paths mentioned in the issue — who changed this last, when, in what commit?
+- Search for related merged PRs in upstream: `gh pr list --repo dotnet/runtime --state merged --search "<method or type name>" --limit 5`
+
+Understanding *what recently changed* is often the fastest path to root cause. Many library bugs are regressions from recent PRs.
+
 **Already-fixed check:** Many issues are silently fixed but not closed. Before writing any code, try to determine if the bug still reproduces on current `main`. If the issue includes a specific repro and the behavior described appears to already be correct in the current code, create an early-rejection note explaining this — don't waste iterations.
 
 ### 2. Locate the Relevant Code
@@ -27,8 +34,45 @@ Read the upstream issue thoroughly:
 - Read **full source files**, not just grep matches — surrounding context matters
 - Identify the call chain from the entry point to the bug site
 - Check related files: interfaces, base classes, callers, tests
+- Search for analogous past fixes in the same library — bugs in the same area often follow similar patterns. Check recently merged PRs for the same library to see if a similar fix was done before and borrow the structural approach.
 
-### 3. Implement the Fix
+### 3. Formulate a Hypothesis
+
+Before writing any code, **state your diagnosis explicitly:**
+
+> "I believe the bug is in `[type.method]` at [location] because [mechanism]. The fix should be [approach]. A test that [description] should fail on main and pass with the fix."
+
+This forces you to commit to a theory in executable terms. If you can't write this sentence clearly, you don't understand the bug well enough yet — keep investigating. Catching a wrong hypothesis before coding saves an entire build-test cycle.
+
+### 4. Write the Test FIRST (TDD)
+
+**Write the failing test before implementing the fix.** This is the most important step in the workflow.
+
+1. Find existing test projects: `src/libraries/<Library>/tests/`
+2. Write a test that reproduces the bug described in the issue
+3. **Run the test on current main — it MUST fail.** If it passes, the bug is already fixed → reject early with `ai:rejected-early`.
+
+```bash
+# Build the library (no changes yet)
+./build.sh -subset libs -c Release \
+  -projects src/libraries/<Library>/src/*.csproj
+
+# Run your new test — it should FAIL, confirming the bug exists
+./build.sh -subset libs.tests -test -c Release \
+  -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
+  -- --filter "YourNewTestMethodName"
+```
+
+This serves as both your **empirical repro gate** (confirms the bug exists) and your **test quality guarantee** (the test definitionally catches the bug).
+
+Test requirements:
+- Follow existing test patterns in that project (xUnit, `[Fact]`/`[Theory]`, assertion style)
+- Test the specific scenario from the issue, not a generic case
+- If the issue has a repro, your test should be recognizably derived from it
+- Name tests descriptively: `MethodName_Scenario_ExpectedBehavior`
+- **Do NOT use `[ConditionalFact]` or `[ConditionalTheory]`** on your new test unless the bug is inherently platform-specific. These attributes silently skip tests — a skipped test shows "0 failures" because it never ran, not because it passed.
+
+### 5. Implement the Fix
 
 - **Minimal change.** Fix the reported bug, nothing more. Don't refactor adjacent code, don't fix unrelated issues, don't "improve" things.
 - **Match existing patterns.** Look at how the surrounding code handles similar cases — follow the same style, error handling, naming conventions.
@@ -39,46 +83,23 @@ Read the upstream issue thoroughly:
   - Don't add new public types/members unless required
 - **If you cannot confidently fix this issue, say so clearly and explain why.** Do not guess. It is better to abandon than to submit a wrong fix.
 
-### 4. Write or Update Tests
+### 6. Verify the Test Now Passes
 
-Every fix MUST have a test that:
-1. **Fails without the fix** (on the unmodified code / main branch)
-2. **Passes with the fix**
-
-This is the single most important quality criterion. A test that passes on both main and the fix branch proves nothing.
-
-- Find existing test projects: `src/libraries/<Library>/tests/`
-- Follow existing test patterns in that project (xUnit, `[Fact]`/`[Theory]`, assertion style)
-- Test the specific scenario from the issue, not a generic case
-- If the issue has a repro, your test should be recognizably derived from it
-- Name tests descriptively: `MethodName_Scenario_ExpectedBehavior`
-- **Do NOT use `[ConditionalFact]` or `[ConditionalTheory]`** on your new test unless the bug is inherently platform-specific. These attributes silently skip tests — a skipped test shows "0 failures" because it never ran, not because it passed.
-- After running tests, verify your new test name appears in the output with `Passed` — not `Skipped` or absent.
-
-### 5. Verify Test Fails Without Fix
-
-**This step is non-optional.** Before proceeding, verify your new test actually catches the bug:
-
+Run the test again — it should now pass:
 ```bash
-# Stash the src/ changes (keep test changes)
-git stash push -m "fix" -- src/libraries/<Library>/src/
-
-# Rebuild the library WITHOUT your fix
 ./build.sh -subset libs -c Release \
   -projects src/libraries/<Library>/src/*.csproj
 
-# Run ONLY your new test — it should FAIL
 ./build.sh -subset libs.tests -test -c Release \
   -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
   -- --filter "YourNewTestMethodName"
-
-# Restore your fix
-git stash pop
 ```
 
-If the test passes without your fix, it does not test the bug. Rewrite the test.
+Verify your test name appears in the output with `Passed` — not `Skipped` or absent.
 
-### 6. Build and Validate
+If it still fails, your fix is wrong. Revisit your hypothesis.
+
+### 7. Build and Validate
 
 Build only what you changed:
 ```bash
@@ -100,7 +121,7 @@ Also build Debug if the library has Debug-specific behavior (Debug.Assert, condi
   -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj
 ```
 
-### 7. Commit
+### 8. Commit
 
 - One logical commit per fix (may include test + production code together)
 - Clear commit message: what the fix does and why, referencing the issue
