@@ -49,9 +49,13 @@ jobs:
         run: |
           sudo eng/common/native/install-dependencies.sh linux
 
-      - name: Build CLR and libraries
+      - name: Build CLR (always Release)
         run: |
-          ./build.sh -subset clr+libs -c ${{ matrix.configuration }}
+          ./build.sh -subset clr -c Release
+
+      - name: Build libraries
+        run: |
+          ./build.sh -subset libs -c ${{ matrix.configuration }}
 
       - name: Build and run all libraries tests
         run: |
