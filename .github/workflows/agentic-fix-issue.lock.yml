@@ -22,7 +22,7 @@
 #
 # Fix a dotnet/runtime issue: create branch, implement fix, run CI, review, create PR
 #
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"b355133c610a20669f5b41da4632ee7076d5bbf421b3e119287bb7ba552e0e58","compiler_version":"v0.64.2","strict":true,"agent_id":"copilot","agent_model":"gpt-4.1"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"8af516c4e4eed6ee9986476154cb5c4471b60319c90eb8885d01b06e5e69075d","compiler_version":"v0.64.2","strict":true,"agent_id":"copilot","agent_model":"gpt-4.1"}
 
 name: "Fix Issue Agent"
 "on":
@@ -144,19 +144,19 @@ jobs:
         run: |
           bash ${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh
           {
-          cat << 'GH_AW_PROMPT_3d590a3664c9499f_EOF'
+          cat << 'GH_AW_PROMPT_c61a35d23d17954b_EOF'
           <system>
-          GH_AW_PROMPT_3d590a3664c9499f_EOF
+          GH_AW_PROMPT_c61a35d23d17954b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_3d590a3664c9499f_EOF'
+          cat << 'GH_AW_PROMPT_c61a35d23d17954b_EOF'
           <safe-output-tools>
           Tools: add_comment(max:10), create_issue, create_pull_request, add_labels(max:10), missing_tool, missing_data, noop
-          GH_AW_PROMPT_3d590a3664c9499f_EOF
+          GH_AW_PROMPT_c61a35d23d17954b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_create_pull_request.md"
-          cat << 'GH_AW_PROMPT_3d590a3664c9499f_EOF'
+          cat << 'GH_AW_PROMPT_c61a35d23d17954b_EOF'
           </safe-output-tools>
           <github-context>
           The following GitHub context information is available for this workflow:
@@ -189,14 +189,14 @@ jobs:
             - **Note**: If a branch you need is not in the list above and is not listed as an additional fetched ref, it has NOT been checked out. For private repositories you cannot fetch it without proper authentication. If the branch is required and not available, exit with an error and ask the user to add it to the `fetch:` option of the `checkout:` configuration (e.g., `fetch: ["refs/pulls/open/*"]` for all open PR refs, or `fetch: ["main", "feature/my-branch"]` for specific branches).
           </github-context>
           
-          GH_AW_PROMPT_3d590a3664c9499f_EOF
+          GH_AW_PROMPT_c61a35d23d17954b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_3d590a3664c9499f_EOF'
+          cat << 'GH_AW_PROMPT_c61a35d23d17954b_EOF'
           </system>
-          GH_AW_PROMPT_3d590a3664c9499f_EOF
-          cat << 'GH_AW_PROMPT_3d590a3664c9499f_EOF'
+          GH_AW_PROMPT_c61a35d23d17954b_EOF
+          cat << 'GH_AW_PROMPT_c61a35d23d17954b_EOF'
           {{#runtime-import .github/workflows/agentic-fix-issue.md}}
-          GH_AW_PROMPT_3d590a3664c9499f_EOF
+          GH_AW_PROMPT_c61a35d23d17954b_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
@@ -349,16 +349,12 @@ jobs:
           GH_HOST: github.com
       - name: Install AWF binary
         run: bash ${RUNNER_TEMP}/gh-aw/actions/install_awf_binary.sh v0.25.1
-      - name: Determine automatic lockdown mode for GitHub MCP Server
-        id: determine-automatic-lockdown
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      - name: Parse integrity filter lists
+        id: parse-guard-vars
         env:
-          GH_AW_GITHUB_TOKEN: ${{ secrets.GH_AW_GITHUB_TOKEN }}
-          GH_AW_GITHUB_MCP_SERVER_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN }}
-        with:
-          script: |
-            const determineAutomaticLockdown = require('${{ runner.temp }}/gh-aw/actions/determine_automatic_lockdown.cjs');
-            await determineAutomaticLockdown(github, context, core);
+          GH_AW_BLOCKED_USERS_VAR: ${{ vars.GH_AW_GITHUB_BLOCKED_USERS || '' }}
+          GH_AW_APPROVAL_LABELS_VAR: ${{ vars.GH_AW_GITHUB_APPROVAL_LABELS || '' }}
+        run: bash ${RUNNER_TEMP}/gh-aw/actions/parse_guard_list.sh
       - name: Download container images
         run: bash ${RUNNER_TEMP}/gh-aw/actions/download_docker_images.sh ghcr.io/github/gh-aw-firewall/agent:0.25.1 ghcr.io/github/gh-aw-firewall/api-proxy:0.25.1 ghcr.io/github/gh-aw-firewall/squid:0.25.1 ghcr.io/github/gh-aw-mcpg:v0.2.6 node:lts-alpine
       - name: Write Safe Outputs Config
@@ -366,12 +362,12 @@ jobs:
           mkdir -p ${RUNNER_TEMP}/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_6491e55251da8383_EOF'
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_9670cb6c3d7efcd3_EOF'
           {"add_comment":{"max":10},"add_labels":{"max":10},"create_issue":{"max":1},"create_pull_request":{"max":1,"max_patch_size":1024,"protected_files":["package.json","bun.lockb","bunfig.toml","deno.json","deno.jsonc","deno.lock","global.json","NuGet.Config","Directory.Packages.props","mix.exs","mix.lock","go.mod","go.sum","stack.yaml","stack.yaml.lock","pom.xml","build.gradle","build.gradle.kts","settings.gradle","settings.gradle.kts","gradle.properties","package-lock.json","yarn.lock","pnpm-lock.yaml","npm-shrinkwrap.json","requirements.txt","Pipfile","Pipfile.lock","pyproject.toml","setup.py","setup.cfg","Gemfile","Gemfile.lock","uv.lock","CODEOWNERS"],"protected_path_prefixes":[".github/",".agents/"]},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_6491e55251da8383_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_9670cb6c3d7efcd3_EOF
       - name: Write Safe Outputs Tools
         run: |
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/tools_meta.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_META_093fb0b1e63fb8cd_EOF'
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/tools_meta.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_META_f36876848992b434_EOF'
           {
             "description_suffixes": {
               "add_comment": " CONSTRAINTS: Maximum 10 comment(s) can be added.",
@@ -382,8 +378,8 @@ jobs:
             "repo_params": {},
             "dynamic_tools": []
           }
-          GH_AW_SAFE_OUTPUTS_TOOLS_META_093fb0b1e63fb8cd_EOF
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/validation.json << 'GH_AW_SAFE_OUTPUTS_VALIDATION_455eaed6238fb1e7_EOF'
+          GH_AW_SAFE_OUTPUTS_TOOLS_META_f36876848992b434_EOF
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/validation.json << 'GH_AW_SAFE_OUTPUTS_VALIDATION_aa18b2d104a1d894_EOF'
           {
             "add_comment": {
               "defaultMax": 1,
@@ -549,7 +545,7 @@ jobs:
               }
             }
           }
-          GH_AW_SAFE_OUTPUTS_VALIDATION_455eaed6238fb1e7_EOF
+          GH_AW_SAFE_OUTPUTS_VALIDATION_aa18b2d104a1d894_EOF
           node ${RUNNER_TEMP}/gh-aw/actions/generate_safe_outputs_tools.cjs
       - name: Generate Safe Outputs MCP Server Config
         id: safe-outputs-config
@@ -595,8 +591,6 @@ jobs:
           GH_AW_SAFE_OUTPUTS: ${{ steps.set-runtime-paths.outputs.GH_AW_SAFE_OUTPUTS }}
           GH_AW_SAFE_OUTPUTS_API_KEY: ${{ steps.safe-outputs-start.outputs.api_key }}
           GH_AW_SAFE_OUTPUTS_PORT: ${{ steps.safe-outputs-start.outputs.port }}
-          GITHUB_MCP_GUARD_MIN_INTEGRITY: ${{ steps.determine-automatic-lockdown.outputs.min_integrity }}
-          GITHUB_MCP_GUARD_REPOS: ${{ steps.determine-automatic-lockdown.outputs.repos }}
           GITHUB_MCP_SERVER_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -eo pipefail
@@ -618,7 +612,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host -v /var/run/docker.sock:/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.2.6'
           
           mkdir -p /home/runner/.copilot
-          cat << GH_AW_MCP_CONFIG_22e1d4b0a454c648_EOF | bash ${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh
+          cat << GH_AW_MCP_CONFIG_825f41b48782f4a4_EOF | bash ${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh
           {
             "mcpServers": {
               "github": {
@@ -635,8 +629,12 @@ jobs:
                 },
                 "guard-policies": {
                   "allow-only": {
-                    "min-integrity": "$GITHUB_MCP_GUARD_MIN_INTEGRITY",
-                    "repos": "$GITHUB_MCP_GUARD_REPOS"
+                    "approval-labels": ${{ steps.parse-guard-vars.outputs.approval_labels }},
+                    "blocked-users": ${{ steps.parse-guard-vars.outputs.blocked_users }},
+                    "min-integrity": "approved",
+                    "repos": [
+                      "dotnet/runtime"
+                    ]
                   }
                 }
               },
@@ -649,7 +647,7 @@ jobs:
                 "guard-policies": {
                   "write-sink": {
                     "accept": [
-                      "*"
+                      "private:dotnet/runtime"
                     ]
                   }
                 }
@@ -662,7 +660,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_22e1d4b0a454c648_EOF
+          GH_AW_MCP_CONFIG_825f41b48782f4a4_EOF
       - name: Download activation artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -838,6 +836,8 @@ jobs:
             /tmp/gh-aw/sandbox/agent/logs/
             /tmp/gh-aw/redacted-urls.log
             /tmp/gh-aw/mcp-logs/
+            /tmp/gh-aw/proxy-logs/
+            !/tmp/gh-aw/proxy-logs/proxy-tls/
             /tmp/gh-aw/agent-stdio.log
             /tmp/gh-aw/agent/
             /tmp/gh-aw/safeoutputs.jsonl

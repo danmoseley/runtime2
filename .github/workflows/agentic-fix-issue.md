@@ -15,6 +15,8 @@ tools:
   github:
     mode: remote
     toolsets: [default, search]
+    allowed-repos: ["dotnet/runtime"]
+    min-integrity: approved
   web-fetch:
 
 checkout:
