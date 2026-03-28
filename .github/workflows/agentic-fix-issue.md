@@ -10,6 +10,7 @@ network:
   allowed:
     - defaults
     - dotnet
+    - github
 
 tools:
   github:
