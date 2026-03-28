@@ -99,13 +99,14 @@ jobs:
 
           # Create new release FIRST (so there's never a gap)
           gh release create "$TAG" golden-part-* \
+            --repo ${{ github.repository }} \
             --title "Golden build $DATE @ $COMMIT_SHORT" \
             --notes "Built from upstream/main $COMMIT_FULL" \
             --latest
 
           # Delete older golden-* releases (keep only latest)
-          gh release list --json tagName,isLatest \
+          gh release list --repo ${{ github.repository }} --json tagName,isLatest \
             -q '.[] | select(.tagName | startswith("golden-")) | select(.isLatest == false) | .tagName' \
-            | xargs -r -I{} gh release delete {} --yes --cleanup-tag
+            | xargs -r -I{} gh release delete {} --repo ${{ github.repository }} --yes --cleanup-tag
 
           echo "=== Release created: $TAG ==="
