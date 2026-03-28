@@ -75,7 +75,8 @@ You are running in a personal fork of dotnet/runtime. The repo is checked out an
 
 > **HARD CONSTRAINTS (read before doing anything):**
 > - **TURN BUDGET:** You have approximately **40 model turns total**. Each time you respond (even to call tools) counts as 1 turn. **Batch tool calls aggressively** — multiple parallel tool calls in one response = 1 turn. Plan your work to finish within budget: ~3 turns for Phase 0-1, ~1 turn for Phase 2-3 (golden download), ~15 turns for Phase 4, ~5 turns for Phase 5, ~3 turns for Phase 6-7. If you're running low, call `noop` with a summary of progress rather than silently stopping.
-> - **DO NOT read `.agentic/skills/fix-issue.md` or any other skill files.** All essential guidelines are already inlined in this prompt. Reading skill files wastes turns.
+> - **NEVER DELEGATE TO SUB-AGENTS.** Do not use Explore agents, background agents, or any task delegation. Do all work yourself in the main conversation. Sub-agents cannot access the tools/context they need and will waste turns.
+> - **DO NOT READ:** `.agentic/skills/fix-issue.md`, `CONTRIBUTING.md`, `coding-style.md`, `docs/workflow/building/libraries/README.md`, or other doc files. All essential guidelines are already inlined in this prompt. Reading docs wastes turns.
 > - **MANDATORY OUTPUT:** You **MUST** call either `create_pull_request` or `noop` before you finish. If you cannot complete the task, call `noop` with a detailed explanation of what you accomplished and what went wrong. NEVER end without producing output.
 > - Before running ANY build or test command, you **MUST** complete Phase 3 (Download Golden Build). No exceptions.
 > - **NEVER** run `./build.sh` or `./build.cmd` for any reason — especially not with `clr`, `clr+libs`, or any subset that builds the runtime/CLR. These take 40+ minutes and will fail due to missing native dependencies in this environment.
@@ -86,14 +87,12 @@ You are running in a personal fork of dotnet/runtime. The repo is checked out an
 
 > **TURN EFFICIENCY:** Do ALL of the following in 2-3 turns by batching tool calls.
 
-**Turn 1 — Fetch everything in parallel:**
-- `github-mcp-server-issue_read` with `method: get`, owner=`dotnet`, repo=`runtime`, issue_number=${{ inputs.issue_number }}
-- `github-mcp-server-issue_read` with `method: get_comments` (same params)
-- Search for existing PRs referencing this issue in this fork
+**Turn 1 — Fetch everything in parallel (do this YOURSELF, not via sub-agents):**
+- `web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}`
+- `web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}/comments`
+- Search for existing PRs referencing this issue in this fork (git log or `github-mcp-server-search_pull_requests`)
 
-**Fallback if MCP fails:** `web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}`
-
-Do NOT use `gh issue view` CLI. Do NOT delegate to a sub-agent.
+Do NOT use `gh issue view` CLI. Do NOT delegate to sub-agents or Explore agents.
 
 **Turn 2 — Validate + Extract:**
 From the fetched data:
