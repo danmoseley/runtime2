@@ -31,6 +31,7 @@ checkout:
 safe-outputs:
   create-pull-request:
     max: 1
+    excluded-files: [".agentic/**"]
   add-comment:
     max: 10
   add-labels:
