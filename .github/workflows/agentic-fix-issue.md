@@ -76,7 +76,11 @@ You are running in a personal fork of dotnet/runtime. The repo is checked out an
 
 Before any expensive work, validate inputs. STOP with `noop` if any check fails.
 
-1. **Verify the issue is open:** Read `${{ inputs.upstream_repo }}#${{ inputs.issue_number }}` using GitHub MCP tools (`github-mcp-server-issue_read` with owner=`dotnet`, repo=`runtime`). If MCP fails, use `web-fetch` on `https://github.com/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}`. If the issue is `closed`, stop immediately with `ai:rejected-early` label and reason "Issue is already closed."
+1. **Verify the issue is open and has correct labels:** Read `${{ inputs.upstream_repo }}#${{ inputs.issue_number }}` using GitHub MCP tools (`github-mcp-server-issue_read` with owner=`dotnet`, repo=`runtime`). If MCP fails, use `web-fetch` on the REST API URL (returns JSON, easy to parse):
+   ```
+   web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}
+   ```
+   From the JSON response, check the `state` field (must be `"open"`) and the `labels` array (each has a `name` field). If the issue is closed, stop with `ai:rejected-early` label and reason "Issue is already closed."
 
 2. **Verify the library path exists:**
    ```bash
@@ -86,9 +90,11 @@ Before any expensive work, validate inputs. STOP with `noop` if any check fails.
    fi
    ```
 
-3. **Verify area label matches:** The issue's `area-*` label **must** contain the library name (e.g., `area-System.Text.Json` for `System.Text.Json`). If the area label does not match `${{ inputs.library }}`, STOP with `ai:rejected-early` — the issue was dispatched to the wrong library.
+3. **Verify area label matches:** The issue's `area-*` label **must** contain the library name (e.g., `area-System.Text.Json` for `System.Text.Json`). If you already read labels in step 1, use those. If the area label does not match `${{ inputs.library }}`, STOP with `ai:rejected-early` — the issue was dispatched to the wrong library.
 
 4. **Verify issue type:** If the issue is tagged `enhancement`, `api-suggestion`, `tracking`, or `epic`, STOP with `ai:rejected-early` — these are not bugs the fix agent can handle.
+
+> **Note on Phase 0:** If you cannot verify labels/status from either MCP or the API, log a warning and proceed to Phase 1. Do NOT stop with `missing_data` — Phase 1 will read the full issue content and you can verify labels then.
 
 ## Phase 1: Understand the Issue
 
@@ -96,11 +102,14 @@ Before any expensive work, validate inputs. STOP with `noop` if any check fails.
 
    **Primary method:** Use the GitHub MCP tools directly (e.g., `github-mcp-server-issue_read` with `method: get` and `method: get_comments`, owner=`dotnet`, repo=`runtime`).
 
-   **Fallback if MCP tools fail or return empty:** Use `web-fetch` to read the issue from the web:
+   **Fallback if MCP tools fail or return empty:** Use `web-fetch` on the REST API (returns JSON with `body`, `labels`, `state`, `comments_url`):
    ```
-   web-fetch: https://github.com/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}
+   web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}
    ```
-   Parse the rendered markdown to extract the issue description and comments.
+   For comments, fetch:
+   ```
+   web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}/comments
+   ```
 
    Do NOT use `gh issue view` CLI — it is not authenticated for upstream repos. Do NOT delegate issue reading to a sub-agent — read it yourself.
 
