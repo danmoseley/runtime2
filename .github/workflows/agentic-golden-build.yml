@@ -67,7 +67,16 @@ jobs:
         run: |
           echo "=== Starting Debug build ==="
           ./build.sh -subset libs -c Debug
-          echo "=== Disk after Debug build ==="
+          echo "=== Disk after Debug libs build ==="
+          df -h /
+
+      - name: Build Debug testhost
+        run: |
+          echo "=== Building Debug testhost ==="
+          ./build.sh -subset libs.pretest -c Debug
+          echo "=== Verify Debug testhost exists ==="
+          ls -la artifacts/bin/testhost/net*-linux-Debug-x64/dotnet || echo "WARNING: Debug testhost not found"
+          echo "=== Disk after Debug testhost ==="
           df -h /
 
       - name: Compress artifacts
