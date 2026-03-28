@@ -78,14 +78,11 @@ Search `${{ inputs.upstream_repo }}` for open issues matching these criteria:
 1. Search for issues with each area label specified in `${{ inputs.areas }}`
 2. Apply the hard filters from the selection skill:
    - Has repro or clear steps
-   - Exactly one `area-*` label
-   - Not labeled `needs-further-triage`, `question`, `enhancement`
    - Not in excluded complex areas (GC, CodeGen, VM, Interop)
-   - Filed within last 2 years
    - No linked open PRs
-   - Not assigned
    - Not labeled `ai:do-not-attempt`
-3. Prefer recent issues (last 6 months) and issues with maintainer engagement
+3. Check soft signals (multiple area labels, age, assignment, etc.) — lower confidence but don't auto-reject
+4. Prefer recent issues (last 6 months) and issues with *positive* maintainer engagement
 
 ## Step 4: Check Already-Attempted
 
@@ -123,6 +120,7 @@ Use the `create-issue` safe output to report your selections. Format:
 - **Library:** [library name]
 - **Test project:** [path to test csproj]
 - **Reasoning:** [why this is a good candidate]
+- **Assumptions:** [likely root cause, expected fix approach, code location, testability, breaking-change risk]
 - **Risk factors:** [any concerns]
 
 ### 2. ...
@@ -148,6 +146,5 @@ gh workflow run agentic-fix-issue.md --repo ${{ github.repository }} \
 ## Guidelines
 
 - **Quality over quantity.** Selecting 3 high-confidence issues is better than 5 questionable ones.
-- **Be conservative for early batches.** We need pipeline validation, not heroic fixes.
-- **Diversify areas** if selecting multiple issues — don't pick 5 issues in the same library (merge conflict risk).
+- **Follow human guidance.** The `difficulty` and `extra_guidance` inputs tell you what the human wants — respect them over default heuristics.
 - **Log every rejection** with a reason — this data helps tune selection criteria.

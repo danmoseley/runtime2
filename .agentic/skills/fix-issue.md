@@ -5,7 +5,7 @@ You are an expert C# developer tasked with fixing a bug in dotnet/runtime. You w
 ## Context
 
 - **Repository:** dotnet/runtime — the .NET runtime and libraries (C#, some C/C++ native code)
-- **Build system:** Arcade (`build.sh`/`build.cmd`), custom MSBuild infrastructure. For individual libraries you can often use `dotnet build`/`dotnet test` directly from the library directory, but read the repo's build docs (`docs/workflow/building/libraries/`) for the specifics.
+- **Build system:** Arcade-based, but for individual library builds use the repo's dotnet wrapper: `./eng/common/dotnet.sh build` (Linux) or `eng\common\dotnet.cmd build` (Windows). This auto-installs the correct SDK and bypasses Arcade's Build.proj. For tests: `./eng/common/dotnet.sh build /t:Test` on the test csproj. See `docs/workflow/building/libraries/` for details.
 - **Target:** Library-level bugs (src/libraries/). You are NOT fixing the JIT, GC, VM, or native runtime.
 
 ## Your Workflow
@@ -54,13 +54,11 @@ This forces you to commit to a theory in executable terms. If you can't write th
 
 ```bash
 # Build the library (no changes yet)
-./build.sh -subset libs -c Release \
-  -projects src/libraries/<Library>/src/*.csproj
+./eng/common/dotnet.sh build src/libraries/<Library>/src/*.csproj -c Release
 
 # Run your new test — it should FAIL, confirming the bug exists
-./build.sh -subset libs.tests -test -c Release \
-  -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
-  -- --filter "YourNewTestMethodName"
+./eng/common/dotnet.sh build src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
+  /t:Test -c Release /p:XUnitMethodName=YourNewTestMethodName
 ```
 
 This serves as both your **empirical repro gate** (confirms the bug exists) and your **test quality guarantee** (the test definitionally catches the bug).
@@ -87,12 +85,10 @@ Test requirements:
 
 Run the test again — it should now pass:
 ```bash
-./build.sh -subset libs -c Release \
-  -projects src/libraries/<Library>/src/*.csproj
+./eng/common/dotnet.sh build src/libraries/<Library>/src/*.csproj -c Release
 
-./build.sh -subset libs.tests -test -c Release \
-  -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
-  -- --filter "YourNewTestMethodName"
+./eng/common/dotnet.sh build src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
+  /t:Test -c Release /p:XUnitMethodName=YourNewTestMethodName
 ```
 
 Verify your test name appears in the output with `Passed` — not `Skipped` or absent.
@@ -104,21 +100,19 @@ If it still fails, your fix is wrong. Revisit your hypothesis.
 Build only what you changed:
 ```bash
 # Build the library (Release)
-./build.sh -subset libs -c Release \
-  -projects src/libraries/<Library>/src/*.csproj
+./eng/common/dotnet.sh build src/libraries/<Library>/src/*.csproj -c Release
 
 # Run tests (Release)
-./build.sh -subset libs.tests -test -c Release \
-  -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj
+./eng/common/dotnet.sh build src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
+  /t:Test -c Release
 ```
 
 Also build Debug if the library has Debug-specific behavior (Debug.Assert, conditional compilation):
 ```bash
-./build.sh -subset libs -c Debug \
-  -projects src/libraries/<Library>/src/*.csproj
+./eng/common/dotnet.sh build src/libraries/<Library>/src/*.csproj -c Debug
 
-./build.sh -subset libs.tests -test -c Debug \
-  -projects src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj
+./eng/common/dotnet.sh build src/libraries/<Library>/tests/<TestProject>/<TestProject>.csproj \
+  /t:Test -c Debug
 ```
 
 ### 8. Commit
