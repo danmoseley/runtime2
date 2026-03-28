@@ -35,11 +35,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "=== Downloading golden release ==="
-          gh release download --pattern 'golden-part-*' --dir /tmp
+          gh release download --repo ${{ github.repository }} --pattern 'golden-part-*' --dir /tmp
           echo "=== Decompressing ==="
           cat /tmp/golden-part-* | zstd -d | tar xf - -C .
           echo "=== Done ==="
           df -h /
+          echo "=== Verify source files ==="
+          ls src/libraries/${{ inputs.library }}/src/*.csproj
+          echo "=== Verify artifacts ==="
+          ls artifacts/bin/${{ inputs.library }}/ | head -5
 
       - name: Build changed library (Release)
         run: |
@@ -68,7 +72,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "=== Downloading golden release ==="
-          gh release download --pattern 'golden-part-*' --dir /tmp
+          gh release download --repo ${{ github.repository }} --pattern 'golden-part-*' --dir /tmp
           echo "=== Decompressing ==="
           cat /tmp/golden-part-* | zstd -d | tar xf - -C .
           echo "=== Done ==="
