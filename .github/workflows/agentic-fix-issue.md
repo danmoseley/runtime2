@@ -117,10 +117,9 @@ Follow the conventions described in these documents.
 
 5. **Run the test on current main — it MUST fail:**
    ```bash
-   ./build.sh -subset libs -c Release \
-     -projects src/libraries/${{ inputs.library }}/src/*.csproj
-   ./build.sh -subset libs.tests -test -c Release \
-     -projects ${{ inputs.test_project }} -- --filter "YourNewTestName"
+   ./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/*.csproj -c Release
+   ./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Release \
+     /p:XUnitMethodName=YourNewTestName
    ```
    If the test **passes**, the bug is already fixed → stop early with `ai:rejected-early`. This saves an entire run's worth of effort.
 
@@ -147,23 +146,21 @@ Download golden artifacts and run the complete test suite:
 
 ```bash
 # Download golden build artifacts
-gh release download --pattern 'golden-part-*' --dir /tmp
+GOLDEN_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
+echo "Using golden release: $GOLDEN_TAG"
+gh release download "$GOLDEN_TAG" --pattern 'golden-part-*' --dir /tmp
 cat /tmp/golden-part-* | zstd -d | tar xf - -C .
 
 # Build the changed library (Release)
-./build.sh -subset libs -c Release \
-  -projects src/libraries/${{ inputs.library }}/src/*.csproj
+./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/*.csproj -c Release
 
 # Run full tests (Release)
-./build.sh -subset libs.tests -test -c Release \
-  -projects ${{ inputs.test_project }}
+./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Release
 
 # Build and test Debug too
-./build.sh -subset libs -c Debug \
-  -projects src/libraries/${{ inputs.library }}/src/*.csproj
+./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/*.csproj -c Debug
 
-./build.sh -subset libs.tests -test -c Debug \
-  -projects ${{ inputs.test_project }}
+./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Debug
 ```
 
 **If build/tests fail:**
