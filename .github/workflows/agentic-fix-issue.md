@@ -158,40 +158,48 @@ df -h /
 cd "$GITHUB_WORKSPACE"
 
 # Download golden build artifacts using GitHub REST API (no gh CLI auth needed for public repos)
+# NOTE: AWF sandbox blocks $(...) command substitution. Use pipes and temp files instead.
 REPO="${{ github.repository }}"
-GOLDEN_TAG=$(curl -sL "https://api.github.com/repos/${REPO}/releases" | python3 -c "
+
+# Step 1: Find the latest golden release tag
+curl -sL "https://api.github.com/repos/${REPO}/releases" | python3 -c "
 import sys, json
 releases = json.load(sys.stdin)
 for r in releases:
     if r['tag_name'].startswith('golden-'):
         print(r['tag_name'])
         break
-" 2>/dev/null)
+" > /tmp/golden_tag.txt 2>/dev/null
 
+GOLDEN_TAG=""
+if [ -f /tmp/golden_tag.txt ]; then
+  read GOLDEN_TAG < /tmp/golden_tag.txt
+fi
 if [ -z "$GOLDEN_TAG" ]; then
   echo "FATAL: No golden-* release found in ${REPO}"
   exit 1
 fi
 echo "Using golden release: $GOLDEN_TAG"
 
-# Download release assets via direct URL (works without auth for public repos)
-ASSET_URLS=$(curl -sL "https://api.github.com/repos/${REPO}/releases/tags/${GOLDEN_TAG}" | python3 -c "
+# Step 2: Get asset download URLs
+curl -sL "https://api.github.com/repos/${REPO}/releases/tags/${GOLDEN_TAG}" | python3 -c "
 import sys, json
 release = json.load(sys.stdin)
 for a in release.get('assets', []):
     if a['name'].startswith('golden-part-'):
-        print(a['browser_download_url'])
-" 2>/dev/null)
+        print(a['name'], a['browser_download_url'])
+" > /tmp/golden_assets.txt 2>/dev/null
 
-if [ -z "$ASSET_URLS" ]; then
+if [ ! -s /tmp/golden_assets.txt ]; then
   echo "FATAL: No golden-part-* assets found in release $GOLDEN_TAG"
   exit 1
 fi
 
-echo "$ASSET_URLS" | while read -r url; do
-  echo "Downloading: $(basename "$url")"
-  curl -sL -o "/tmp/$(basename "$url")" "$url"
-done
+# Step 3: Download each asset
+while read -r name url; do
+  echo "Downloading: $name"
+  curl -sL -o "/tmp/$name" "$url"
+done < /tmp/golden_assets.txt
 set -o pipefail
 ls /tmp/golden-part-* | sort | xargs cat | zstd -d | tar xf - -C .
 set +o pipefail
@@ -200,7 +208,7 @@ df -h /  # log disk space
 
 # Pin checkout to golden commit to avoid version mismatch
 if [ -f artifacts/GOLDEN_COMMIT_SHA ]; then
-  GOLDEN_SHA=$(cat artifacts/GOLDEN_COMMIT_SHA)
+  read GOLDEN_SHA < artifacts/GOLDEN_COMMIT_SHA
   echo "Pinning to golden commit: $GOLDEN_SHA"
   git checkout "$GOLDEN_SHA" 2>/dev/null || echo "WARNING: Could not checkout golden commit, using current HEAD"
 fi
