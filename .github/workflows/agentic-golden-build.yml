@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write  # push to main, create releases
+  workflows: write  # push workflow files from agentic/infra branch
 
 jobs:
   build:
