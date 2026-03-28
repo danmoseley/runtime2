@@ -100,7 +100,7 @@ Before any expensive work, validate inputs. STOP with `noop` if any check fails.
    fi
    ```
 
-3. **Verify area label matches:** The issue's `area-*` label **must** contain the library name (e.g., `area-System.Text.Json` for `System.Text.Json`). If you already read labels in step 1, use those. If the area label does not match `${{ inputs.library }}`, STOP with `ai:rejected-early` — the issue was dispatched to the wrong library.
+3. **Check area label (soft match):** The issue's `area-*` label should *roughly* correspond to `${{ inputs.library }}`, but area labels are not always accurate — they're applied by humans and can be wrong or ambiguous. Use the label as a hint for where to start looking. Do NOT reject the issue solely because the label doesn't exactly match. If the issue clearly belongs to a completely unrelated area (e.g., dispatched as `System.IO` but actually about `System.Net.Http`), STOP with `ai:rejected-early`.
 
 4. **Verify issue type:** If the issue is tagged `api-suggestion`, `api-needs-work`, `api-ready-for-review`, `tracking`, or `epic`, STOP with `ai:rejected-early` — these are not actionable (API proposals still in review, tracking epics, etc.). Issues tagged `api-approved` **are** actionable and should be treated like bugs with a well-defined spec.
 
