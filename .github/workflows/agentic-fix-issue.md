@@ -95,7 +95,23 @@ Before writing any code, read these files from the repo:
 
 Follow the conventions described in these documents.
 
-## Phase 3: Investigate, Hypothesize, and Test First
+## Phase 3: Download Golden Build
+
+**CRITICAL: You MUST download golden build artifacts before attempting any build or test.** The golden build provides the pre-built CLR, shared framework, and testhost. Without it, you cannot run tests. **Do NOT run `build.sh` with `clr` or `clr+libs` — that takes 40+ minutes and will fail due to missing native dependencies.**
+
+```bash
+# Download golden build artifacts
+GOLDEN_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
+echo "Using golden release: $GOLDEN_TAG"
+gh release download "$GOLDEN_TAG" --repo ${{ github.repository }} --pattern 'golden-part-*' --dir /tmp
+cat /tmp/golden-part-* | zstd -d | tar xf - -C .
+echo "Golden artifacts extracted. Contents of artifacts/bin/testhost/:"
+ls artifacts/bin/testhost/ 2>/dev/null || echo "WARNING: no testhost found"
+```
+
+After extraction, verify you see `artifacts/bin/testhost/net*-linux-Release-x64/dotnet`. This is required for running tests.
+
+## Phase 4: Investigate, Hypothesize, and Test First
 
 1. **Create a fix branch:**
    ```bash
@@ -120,6 +136,7 @@ Follow the conventions described in these documents.
 
 5. **Run the test on current main — it MUST fail:**
    ```bash
+   # Build the library (uses golden testhost for running tests)
    ./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/*.csproj -c Release
    ./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Release \
      /p:XUnitMethodName=YourNewTestName
@@ -143,17 +160,11 @@ Follow the conventions described in these documents.
 
 9. **Diff-size check:** Run `git diff --stat origin/main` and count changed files (excluding test files). If you've modified more than **5 source files**, stop and critically re-evaluate — you may be refactoring instead of fixing. If the fix genuinely requires broad changes, note it as `ai:longer-review`.
 
-## Phase 4: Full Build and Test
+## Phase 5: Full Test Suite
 
-Download golden artifacts and run the complete test suite:
+Run the **complete** test suite for the library (not just your new test):
 
 ```bash
-# Download golden build artifacts
-GOLDEN_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
-echo "Using golden release: $GOLDEN_TAG"
-gh release download "$GOLDEN_TAG" --repo ${{ github.repository }} --pattern 'golden-part-*' --dir /tmp
-cat /tmp/golden-part-* | zstd -d | tar xf - -C .
-
 # Build the changed library (Release)
 ./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/*.csproj -c Release
 
@@ -178,7 +189,7 @@ If the Debug testhost does not exist, skip Debug — Release-only validation is 
 
 Confirm your new test name appears as `Passed` (not `Skipped`) in the test output — `[ConditionalFact]` tests can be silently skipped.
 
-## Phase 5: Self-Review
+## Phase 6: Self-Review
 
 Before creating the PR, review your own changes against these criteria:
 
@@ -193,7 +204,7 @@ Read `.agentic/skills/review-breaking.md` and `.agentic/skills/review-perf.md` f
 
 If you find issues in your own review, fix them before proceeding.
 
-## Phase 6: Create the PR
+## Phase 7: Create the PR
 
 Push your branch and create a pull request using the `create-pull-request` safe output.
 
