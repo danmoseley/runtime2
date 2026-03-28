@@ -32,10 +32,14 @@ safe-outputs:
   create-pull-request:
     max: 1
     excluded-files: [".agentic/**"]
+    draft: false
+    labels: [ai:agent-fix]
+    github-token-for-extra-empty-commit: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
   add-comment:
     max: 10
   add-labels:
     max: 10
+    target: "*"
   noop:
     report-as-issue: false
 
@@ -247,7 +251,7 @@ Create a pull request using `create-pull-request` safe output in **this fork** (
 **Self-review:** Correctness ✅/⚠️ | Tests ✅/⚠️ | Breaking ✅/⚠️
 ```
 
-**Labels** (via `add-labels`): One of `ai:ready-for-human`/`ai:failed`/`ai:rejected-early`, plus a confidence label (`ai:high-confidence`/`ai:medium-confidence`/`ai:low-confidence`).
+**Labels** (via `add-labels`): Call `add_labels` with **`item_number`** set to the PR number from `create_pull_request` output. Labels: one of `ai:ready-for-human`/`ai:failed`/`ai:rejected-early`, plus `ai:high-confidence`/`ai:medium-confidence`/`ai:low-confidence`. If you don't have the PR number, use `item_number: ${{ inputs.issue_number }}` to label the source issue instead.
 
 ## Rules
 
