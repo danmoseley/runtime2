@@ -64,9 +64,16 @@ You are an automated bug-fixing agent for dotnet/runtime. Your job is to fix iss
 
 You are running in a personal fork of dotnet/runtime. The repo is checked out and golden build artifacts are available via GitHub Releases.
 
+> **HARD CONSTRAINTS (read before doing anything):**
+> - Before running ANY build or test command, you **MUST** complete Phase 3 (Download Golden Build). No exceptions.
+> - **NEVER** run `./build.sh` or `./build.cmd` for any reason — especially not with `clr`, `clr+libs`, or any subset that builds the runtime/CLR. These take 40+ minutes and will fail due to missing native dependencies in this environment.
+> - You only build individual library/test projects via `./eng/common/dotnet.sh build <csproj>`. The CLR, shared framework, and testhost come from golden artifacts.
+> - If golden download fails or testhost is missing, **STOP** with `noop` and explain. Do NOT improvise a full tree build as a fallback.
+
 ## Phase 1: Understand the Issue
 
 1. **Read the upstream issue** at `${{ inputs.upstream_repo }}#${{ inputs.issue_number }}`. Read the full description and ALL comments.
+   **IMPORTANT:** Use the GitHub MCP tools directly (e.g., `github-mcp-server-issue_read` with `method: get` and `method: get_comments`) to read the issue. Do NOT use `gh issue view` CLI — it is not authenticated in this environment. Do NOT delegate issue reading to a sub-agent — read it yourself with MCP tools.
 2. Extract:
    - What is the bug? (expected vs. actual behavior)
    - Reproduction steps or code
@@ -90,31 +97,46 @@ You are running in a personal fork of dotnet/runtime. The repo is checked out an
 Before writing any code, read these files from the repo:
 - `CONTRIBUTING.md`
 - `docs/coding-guidelines/coding-style.md`
-- `docs/workflow/building/libraries/README.md` (or the appropriate build doc)
-- `.agentic/skills/fix-issue.md` — detailed fix agent instructions
+- `docs/workflow/building/libraries/README.md` — use ONLY the sections about library-level builds with `dotnet.sh`; **ignore** any guidance about building the full runtime or running `build.sh`/`build.cmd`
+- `.agentic/skills/fix-issue.md` — detailed fix agent instructions (when reading this, remember: golden artifacts provide testhost/shared framework; never attempt full tree builds)
 
-Follow the conventions described in these documents.
+Follow the conventions described in these documents. **Do NOT run any build or test commands during this phase.**
 
 ## Phase 3: Download Golden Build
 
 **CRITICAL: You MUST download golden build artifacts before attempting any build or test.** The golden build provides the pre-built CLR, shared framework, and testhost. Without it, you cannot run tests. **Do NOT run `build.sh` with `clr` or `clr+libs` — that takes 40+ minutes and will fail due to missing native dependencies.**
 
 ```bash
-# Download golden build artifacts
-GOLDEN_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
+# Ensure required tools are available (no-op if already installed)
+sudo apt-get update -qq && sudo apt-get install -y -qq zstd > /dev/null 2>&1 || true
+command -v zstd >/dev/null || { echo "FATAL: zstd not installed and apt-get failed"; exit 1; }
+
+# Always work from repo root for extraction
+cd "$GITHUB_WORKSPACE"
+
+# Download golden build artifacts (filter by golden- prefix)
+GOLDEN_TAG=$(gh release list --repo ${{ github.repository }} --limit 10 --json tagName -q '[.[] | select(.tagName | startswith("golden-"))][0].tagName')
 echo "Using golden release: $GOLDEN_TAG"
 gh release download "$GOLDEN_TAG" --repo ${{ github.repository }} --pattern 'golden-part-*' --dir /tmp
-cat /tmp/golden-part-* | zstd -d | tar xf - -C .
-echo "Golden artifacts extracted. Contents of artifacts/bin/testhost/:"
-ls artifacts/bin/testhost/ 2>/dev/null || echo "WARNING: no testhost found"
+ls /tmp/golden-part-* | sort | xargs cat | zstd -d | tar xf - -C .
+rm -f /tmp/golden-part-*  # free disk space
+df -h /  # log disk space
+
+# Verify testhost exists — STOP if missing
+if ! ls artifacts/bin/testhost/net*-linux-Release-x64/dotnet 1>/dev/null 2>&1; then
+  echo "FATAL: Golden Release testhost not found. Cannot proceed."
+  exit 1
+fi
+echo "Golden artifacts OK. Testhost found."
 ```
 
-After extraction, verify you see `artifacts/bin/testhost/net*-linux-Release-x64/dotnet`. This is required for running tests.
+After extraction, verify you see `artifacts/bin/testhost/net*-linux-Release-x64/dotnet`. This is required for running tests. **If `gh release download` or extraction fails, or testhost is not present, STOP immediately with `noop` — do NOT attempt to build the CLR or full repo as a substitute.**
 
 ## Phase 4: Investigate, Hypothesize, and Test First
 
 1. **Create a fix branch:**
    ```bash
+   git branch -D fix/issue-${{ inputs.issue_number }} 2>/dev/null || true
    git checkout -b fix/issue-${{ inputs.issue_number }} origin/main
    ```
 
@@ -135,13 +157,24 @@ After extraction, verify you see `artifacts/bin/testhost/net*-linux-Release-x64/
    - Test the specific scenario from the issue
 
 5. **Run the test on current main — it MUST fail:**
+
+   > **Note:** The first `./eng/common/dotnet.sh` invocation downloads the .NET SDK (~600 MB). This takes 3-5 minutes with minimal output. Do NOT interrupt it — it is not hung.
+
    ```bash
    # Build the library (uses golden testhost for running tests)
-   ./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/*.csproj -c Release
+   ./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/${{ inputs.library }}.csproj -c Release
    ./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Release \
-     /p:XUnitMethodName=YourNewTestName
+     /p:XUnitMethodName=<YOUR_ACTUAL_TEST_METHOD_NAME>
    ```
+   **Replace `<YOUR_ACTUAL_TEST_METHOD_NAME>` with the fully qualified name of the test you wrote** (e.g., `System.Text.Json.Tests.PolymorphicTests.MyNewTest`).
+
    If the test **passes**, the bug is already fixed → stop early with `ai:rejected-early`. This saves an entire run's worth of effort.
+
+   **On build failure triage:**
+   - Read the error file path — is it in `src/` or `tests/`?
+   - If the error is in a **test file you wrote**, fix the test code.
+   - If the error is in **source you changed**, fix the source code.
+   - If the error is in **code you didn't touch**, it may be pre-existing — note it and try to work around.
 
 6. **Implement the fix:**
    - Minimal change — fix the reported bug, nothing more
@@ -206,7 +239,9 @@ If you find issues in your own review, fix them before proceeding.
 
 ## Phase 7: Create the PR
 
-Push your branch and create a pull request using the `create-pull-request` safe output.
+Create a pull request using the `create-pull-request` safe output. **Do NOT run `git push` manually** — the safe output system handles both the push and PR creation.
+
+Create the PR in **this fork** (${{ github.repository }}) targeting the `main` branch. Do NOT create a PR directly in ${{ inputs.upstream_repo }} — the human maintainer handles upstream submission.
 
 **PR title:** `Fix ${{ inputs.upstream_repo }}#${{ inputs.issue_number }}: <brief description>`
 
@@ -248,7 +283,7 @@ Push your branch and create a pull request using the `create-pull-request` safe 
 </details>
 ```
 
-## Phase 7: Label the PR
+## Phase 8: Label the PR
 
 Apply labels using the `add-label` safe output:
 
@@ -256,7 +291,7 @@ Apply labels using the `add-label` safe output:
 - **Confidence:** `ai:high-confidence`, `ai:medium-confidence`, or `ai:low-confidence`
 - **Characteristics** (as applicable): `ai:quick-review`, `ai:needs-domain-expertise`, `ai:longer-review`, `ai:has-perf-concern`, `ai:has-breaking-concern`, `ai:needs-broader-tests`, `ai:alternative-suggested`
 
-## Phase 8: Create Process Log Issue
+## Phase 9: Create Process Log Issue
 
 Create a companion issue in this fork using the `create-issue` safe output:
 

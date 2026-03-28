@@ -79,6 +79,15 @@ jobs:
           echo "=== Disk after Debug testhost ==="
           df -h /
 
+      - name: Build Release testhost
+        run: |
+          echo "=== Building Release testhost ==="
+          ./build.sh -subset libs.pretest -c Release
+          echo "=== Verify Release testhost exists ==="
+          ls -la artifacts/bin/testhost/net*-linux-Release-x64/dotnet || echo "WARNING: Release testhost not found"
+          echo "=== Disk after Release testhost ==="
+          df -h /
+
       - name: Compress artifacts
         run: |
           echo "=== Artifact sizes ==="
@@ -92,6 +101,8 @@ jobs:
           ls -lh golden-artifacts.tar.zst
 
           # Split for GitHub release 2GB-per-asset limit
+          # WARNING: Do not use 'split -d' (numeric suffixes). Alphabetic suffixes
+          # are required for correct sort order when reassembling on download.
           split -b 1900m golden-artifacts.tar.zst golden-part-
 
           echo "=== Split parts ==="
