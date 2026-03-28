@@ -53,19 +53,27 @@ Your ONLY job is to check API-related concerns. Do NOT review general code quali
 - Compare with how similar types declare their members in the ref assembly (e.g., if adding a property to an exception, look at how `FileNotFoundException` declares `FileName`).
 - **Verdict:** ❌ if ref assembly not updated for new public API.
 
-### 3. API Approval
+### 3. API Approval and Shape Fidelity
 - Check if the linked issue has the `api-approved` label. The issue is usually referenced in the PR body or title.
 - Fetch the issue metadata: `https://api.github.com/repos/dotnet/runtime/issues/{NUMBER}` and check `labels` for `api-approved`.
 - If adding new public API without `api-approved` on the linked issue: ⚠️ flag it.
-- If the issue IS `api-approved`, verify the implementation matches the approved API shape in the issue body.
+- If the issue IS `api-approved`:
+  - **Shape match:** Verify the implementation matches the approved API shape in the issue body EXACTLY — no extra members, no missing members, no signature differences (parameter types, names, defaults, nullability).
+  - **Behavioral subtleties:** Read the issue discussion carefully for any notes about expected behavior, edge cases, thread safety, or platform constraints. Verify these are implemented and tested.
+  - **Platform coverage:** If the API should work on all OS platforms (Windows/Linux/macOS), check that tests aren't accidentally platform-specific. If it IS platform-specific, verify appropriate `[PlatformSpecific]` or conditional compilation.
 
-### 4. Breaking Changes
+### 4. Usage Throughout the Tree
+- If the PR implements a **new API**, search `src/libraries/` for existing code that could benefit from using it.
+- For example: new constructor overload → find places that construct + immediately set the property. New helper method → find duplicated patterns it could replace.
+- Flag if obvious adoption opportunities are missed. This is expected practice in dotnet/runtime.
+
+### 5. Breaking Changes
 - Check if any existing public API signatures have changed (parameter types, return types, removed members).
 - Check if default behavior has changed in ways that could break existing callers.
 - Check for new required parameters on existing constructors.
 - **Verdict:** ❌ if there are unintentional breaking changes.
 
-### 5. Serialization / Pattern Consistency
+### 6. Serialization / Pattern Consistency
 - If modifying an exception type, check: Does it follow the pattern of similar types? (e.g., `GetObjectData`, `ToString` overrides, serialization constructor).
 - If adding a property that carries important diagnostic data, does it appear in `ToString()` output?
 
