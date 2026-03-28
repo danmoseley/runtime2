@@ -147,9 +147,9 @@ Download golden artifacts and run the complete test suite:
 
 ```bash
 # Download golden build artifacts
-GOLDEN_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
+GOLDEN_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
 echo "Using golden release: $GOLDEN_TAG"
-gh release download "$GOLDEN_TAG" --pattern 'golden-part-*' --dir /tmp
+gh release download "$GOLDEN_TAG" --repo ${{ github.repository }} --pattern 'golden-part-*' --dir /tmp
 cat /tmp/golden-part-* | zstd -d | tar xf - -C .
 
 # Build the changed library (Release)
@@ -157,12 +157,16 @@ cat /tmp/golden-part-* | zstd -d | tar xf - -C .
 
 # Run full tests (Release)
 ./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Release
+```
 
-# Build and test Debug too
+**Debug build/test is optional.** If the golden build includes a Debug testhost (check for `artifacts/bin/testhost/net*-linux-Debug-x64/dotnet`), also run:
+
+```bash
 ./eng/common/dotnet.sh build src/libraries/${{ inputs.library }}/src/*.csproj -c Debug
-
 ./eng/common/dotnet.sh build ${{ inputs.test_project }} /t:Test -c Debug
 ```
+
+If the Debug testhost does not exist, skip Debug — Release-only validation is sufficient.
 
 **If build/tests fail:**
 - Read the error output carefully
