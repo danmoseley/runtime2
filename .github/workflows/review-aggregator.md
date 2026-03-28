@@ -28,11 +28,8 @@ safe-outputs:
     target: "*"
 
 on:
-  workflow_run:
-    workflows: ["Code Review", "API Surface Review"]
-    types: [completed]
-    branches:
-      - 'fix/**'
+  issue_comment:
+    types: [created]
 
 engine:
   id: copilot
@@ -43,26 +40,21 @@ engine:
 
 You aggregate reviews from specialist reviewer agents for PR changes in this repository. A reviewer workflow just completed — check if all reviews are in, then synthesize.
 
-## Step 1: Identify the PR
+## Step 1: Validate Trigger and Identify the PR
 
-The triggering workflow ran on a pull request. The PR number is available in the event payload:
+This workflow triggers on ANY `issue_comment` event. You must filter early:
 
-```bash
-# The workflow_run event includes pull_request associations
-# Use the head branch to find the PR
-BRANCH=$(gh run view ${{ github.event.workflow_run.id }} --json headBranch --jq '.headBranch')
-echo "Triggering branch: $BRANCH"
-PR_NUMBER=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number')
-echo "PR number: $PR_NUMBER"
-```
+1. **Check this is a PR comment** (not a plain issue): run `gh pr view ${{ github.event.issue.number }} --json headRefName --jq '.headRefName' 2>/dev/null`. If this fails or returns empty, it's a plain issue — call `noop` and stop.
+2. **Check the branch matches `fix/**`**: the head ref from step above must start with `fix/`. If not, call `noop` and stop.
+3. **Check the comment is from a reviewer workflow**: read the triggering comment body and check if it contains `<!-- gh-aw-agentic-workflow: Code Review` or `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match — the framework appends metadata). If neither marker is found, call `noop` and stop.
 
-If no open PR found, call `noop` and stop.
+The PR number is `${{ github.event.issue.number }}`.
 
 ## Step 2: Check if All Reviews Are In
 
-Read the PR comments and look for review markers from each specialist. The AWF framework auto-injects markers at the end of each comment:
+Read the PR comments for PR #`${{ github.event.issue.number }}` and look for review markers from each specialist. The AWF framework auto-injects markers at the end of each comment:
 - Code Review: look for `<!-- gh-aw-agentic-workflow: Code Review` (partial match — the framework appends metadata after the workflow name)
-- API Review: look for `<!-- gh-aw-api-review -->`
+- API Review: look for `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match)
 
 **Also check CI status:**
 - Look at PR check runs for `ci-build-test` workflow status
