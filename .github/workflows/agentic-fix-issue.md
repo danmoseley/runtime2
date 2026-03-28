@@ -11,6 +11,8 @@ network:
     - defaults
     - dotnet
     - github
+  firewall:
+    log-level: debug
 
 tools:
   bash:
@@ -35,6 +37,8 @@ safe-outputs:
     max: 10
   create-issue:
     max: 1
+  noop:
+    report-as-issue: false
 
 on:
   workflow_dispatch:
