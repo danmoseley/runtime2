@@ -40,20 +40,19 @@ jobs:
           cat /tmp/golden-part-* | zstd -d | tar xf - -C .
           echo "=== Done ==="
           df -h /
-          echo "=== Verify source files ==="
-          ls src/libraries/${{ inputs.library }}/src/*.csproj
-          echo "=== Verify artifacts ==="
-          ls artifacts/bin/${{ inputs.library }}/ | head -5
+
+      - name: Install .NET SDK
+        run: |
+          ./eng/common/dotnet-install.sh || true
+          echo "$(pwd)/.dotnet" >> $GITHUB_PATH
 
       - name: Build changed library (Release)
         run: |
-          ./build.sh -c Release \
-            -projects src/libraries/${{ inputs.library }}/src/*.csproj
+          dotnet build src/libraries/${{ inputs.library }}/src/*.csproj -c Release
 
       - name: Run tests (Release)
         run: |
-          ./build.sh -test -c Release \
-            -projects ${{ inputs.test_project }}
+          dotnet build ${{ inputs.test_project }} /t:Test -c Release
 
   test-debug:
     runs-on: ubuntu-latest
@@ -78,12 +77,15 @@ jobs:
           echo "=== Done ==="
           df -h /
 
+      - name: Install .NET SDK
+        run: |
+          ./eng/common/dotnet-install.sh || true
+          echo "$(pwd)/.dotnet" >> $GITHUB_PATH
+
       - name: Build changed library (Debug)
         run: |
-          ./build.sh -c Debug \
-            -projects src/libraries/${{ inputs.library }}/src/*.csproj
+          dotnet build src/libraries/${{ inputs.library }}/src/*.csproj -c Debug
 
       - name: Run tests (Debug)
         run: |
-          ./build.sh -test -c Debug \
-            -projects ${{ inputs.test_project }}
+          dotnet build ${{ inputs.test_project }} /t:Test -c Debug
