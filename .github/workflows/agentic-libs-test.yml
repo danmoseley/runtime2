@@ -47,12 +47,12 @@ jobs:
 
       - name: Build changed library (Release)
         run: |
-          ./build.sh -subset libs -c Release \
+          ./build.sh -c Release \
             -projects src/libraries/${{ inputs.library }}/src/*.csproj
 
       - name: Run tests (Release)
         run: |
-          ./build.sh -subset libs.tests -test -c Release \
+          ./build.sh -test -c Release \
             -projects ${{ inputs.test_project }}
 
   test-debug:
@@ -80,10 +80,10 @@ jobs:
 
       - name: Build changed library (Debug)
         run: |
-          ./build.sh -subset libs -c Debug \
+          ./build.sh -c Debug \
             -projects src/libraries/${{ inputs.library }}/src/*.csproj
 
       - name: Run tests (Debug)
         run: |
-          ./build.sh -subset libs.tests -test -c Debug \
+          ./build.sh -test -c Debug \
             -projects ${{ inputs.test_project }}
