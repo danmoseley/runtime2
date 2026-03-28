@@ -156,14 +156,41 @@ df -h /
 # Always work from repo root for extraction
 cd "$GITHUB_WORKSPACE"
 
-# Download golden build artifacts (filter by golden- prefix)
-GOLDEN_TAG=$(gh release list --repo ${{ github.repository }} --limit 10 --json tagName -q '[.[] | select(.tagName | startswith("golden-"))][0].tagName')
+# Download golden build artifacts using GitHub REST API (no gh CLI auth needed for public repos)
+REPO="${{ github.repository }}"
+GOLDEN_TAG=$(curl -sL "https://api.github.com/repos/${REPO}/releases" | python3 -c "
+import sys, json
+releases = json.load(sys.stdin)
+for r in releases:
+    if r['tag_name'].startswith('golden-'):
+        print(r['tag_name'])
+        break
+" 2>/dev/null)
+
 if [ -z "$GOLDEN_TAG" ]; then
-  echo "FATAL: No golden-* release found in ${{ github.repository }}"
+  echo "FATAL: No golden-* release found in ${REPO}"
   exit 1
 fi
 echo "Using golden release: $GOLDEN_TAG"
-gh release download "$GOLDEN_TAG" --repo ${{ github.repository }} --pattern 'golden-part-*' --dir /tmp
+
+# Download release assets via direct URL (works without auth for public repos)
+ASSET_URLS=$(curl -sL "https://api.github.com/repos/${REPO}/releases/tags/${GOLDEN_TAG}" | python3 -c "
+import sys, json
+release = json.load(sys.stdin)
+for a in release.get('assets', []):
+    if a['name'].startswith('golden-part-'):
+        print(a['browser_download_url'])
+" 2>/dev/null)
+
+if [ -z "$ASSET_URLS" ]; then
+  echo "FATAL: No golden-part-* assets found in release $GOLDEN_TAG"
+  exit 1
+fi
+
+echo "$ASSET_URLS" | while read -r url; do
+  echo "Downloading: $(basename "$url")"
+  curl -sL -o "/tmp/$(basename "$url")" "$url"
+done
 set -o pipefail
 ls /tmp/golden-part-* | sort | xargs cat | zstd -d | tar xf - -C .
 set +o pipefail
