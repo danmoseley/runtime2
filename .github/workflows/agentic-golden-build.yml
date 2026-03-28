@@ -90,6 +90,10 @@ jobs:
 
       - name: Compress artifacts
         run: |
+          # Embed the commit SHA so fix workflow can checkout the exact matching commit
+          git rev-parse HEAD > artifacts/GOLDEN_COMMIT_SHA
+          echo "Golden commit: $(cat artifacts/GOLDEN_COMMIT_SHA)"
+
           echo "=== Artifact sizes ==="
           du -sh artifacts/
           du -sh artifacts/bin/ artifacts/obj/ 2>/dev/null || true
