@@ -102,7 +102,9 @@ Before any expensive work, validate inputs. STOP with `noop` if any check fails.
 
 3. **Verify area label matches:** The issue's `area-*` label **must** contain the library name (e.g., `area-System.Text.Json` for `System.Text.Json`). If you already read labels in step 1, use those. If the area label does not match `${{ inputs.library }}`, STOP with `ai:rejected-early` — the issue was dispatched to the wrong library.
 
-4. **Verify issue type:** If the issue is tagged `enhancement`, `api-suggestion`, `tracking`, or `epic`, STOP with `ai:rejected-early` — these are not bugs the fix agent can handle.
+4. **Verify issue type:** If the issue is tagged `api-suggestion`, `api-needs-work`, `api-ready-for-review`, `tracking`, or `epic`, STOP with `ai:rejected-early` — these are not actionable (API proposals still in review, tracking epics, etc.). Issues tagged `api-approved` **are** actionable and should be treated like bugs with a well-defined spec.
+
+5. **Check platform constraints:** This agent runs on **Linux x64**. If the issue is tagged `os-windows`, `os-mac`, or `os-ios`/`os-android`/`os-tvos` (without also being tagged `os-linux`), or if the issue description clearly states it only reproduces on a non-Linux platform, STOP with `ai:rejected-early` — the fix cannot be validated in this sandbox. Issues with no OS label or with `os-linux` are fine to proceed.
 
 > **Note on Phase 0:** If you cannot verify labels/status from either MCP or the API, log a warning and proceed to Phase 1. Do NOT stop with `missing_data` — Phase 1 will read the full issue content and you can verify labels then.
 
