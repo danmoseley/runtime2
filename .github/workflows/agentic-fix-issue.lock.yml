@@ -138,6 +138,7 @@ jobs:
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_INPUTS_ISSUE_NUMBER: ${{ inputs.issue_number }}
           GH_AW_INPUTS_LIBRARY: ${{ inputs.library }}
+          GH_AW_INPUTS_TEST_PROJECT: ${{ inputs.test_project }}
           GH_AW_INPUTS_UPSTREAM_REPO: ${{ inputs.upstream_repo }}
         # poutine:ignore untrusted_checkout_exec
         run: |
@@ -204,6 +205,7 @@ jobs:
           GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_INPUTS_ISSUE_NUMBER: ${{ inputs.issue_number }}
           GH_AW_INPUTS_LIBRARY: ${{ inputs.library }}
+          GH_AW_INPUTS_TEST_PROJECT: ${{ inputs.test_project }}
           GH_AW_INPUTS_UPSTREAM_REPO: ${{ inputs.upstream_repo }}
         with:
           script: |
@@ -225,6 +227,7 @@ jobs:
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_INPUTS_ISSUE_NUMBER: ${{ inputs.issue_number }}
           GH_AW_INPUTS_LIBRARY: ${{ inputs.library }}
+          GH_AW_INPUTS_TEST_PROJECT: ${{ inputs.test_project }}
           GH_AW_INPUTS_UPSTREAM_REPO: ${{ inputs.upstream_repo }}
         with:
           script: |
@@ -247,6 +250,7 @@ jobs:
                 GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE,
                 GH_AW_INPUTS_ISSUE_NUMBER: process.env.GH_AW_INPUTS_ISSUE_NUMBER,
                 GH_AW_INPUTS_LIBRARY: process.env.GH_AW_INPUTS_LIBRARY,
+                GH_AW_INPUTS_TEST_PROJECT: process.env.GH_AW_INPUTS_TEST_PROJECT,
                 GH_AW_INPUTS_UPSTREAM_REPO: process.env.GH_AW_INPUTS_UPSTREAM_REPO
               }
             });

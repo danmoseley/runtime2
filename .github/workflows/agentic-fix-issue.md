@@ -121,12 +121,18 @@ Issues tagged `api-approved` ARE actionable. Area labels and `${{ inputs.library
 - No trailing whitespace. Use 4-space indentation (no tabs).
 - File-scoped namespaces are preferred in newer files.
 - Match the style of the file you're editing — consistency with surrounding code trumps all.
+- All new `.cs` files MUST start with: `// Licensed to the .NET Foundation under one or more agreements.` / `// The .NET Foundation licenses this file to you under the MIT license.`
+- **NEVER put test code in production source files.** Tests go ONLY in test projects.
+
+**API surface rules:**
+- If you add or change **any public API** (new public class, method, property, constructor), you MUST also update the ref assembly at `src/libraries/System.Runtime/ref/System.Runtime.cs` (or the appropriate ref project). Find the existing type declaration and add the new members matching the pattern of similar types.
+- If the issue is labeled `api-approved`, the approved API shape is in the issue body — match it exactly.
 
 **Test conventions:**
 - Use xUnit: `[Fact]` for single cases, `[Theory]` with `[InlineData]`/`[MemberData]` for parameterized.
 - Test class names: `<Feature>Tests.cs`. Method names: descriptive, e.g., `Method_Condition_ExpectedResult`.
 - Use `Assert.Equal`, `Assert.Throws<T>`, `Assert.True/False`. No third-party assertion libs.
-- Put new tests in an existing test file that covers the same area. Create a new file only if nothing fits.
+- Put new tests in the **existing test file** under the test project (`${{ inputs.test_project }}`). Do NOT create test files under `System.Private.CoreLib/tests/` or other non-test-project locations. If no existing file fits, create a new file in the same directory as the test project's other test files.
 
 **Build commands (uses golden testhost):**
 - Build a library: `./eng/common/dotnet.sh build <path-to-src-csproj> -c Release`
