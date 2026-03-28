@@ -127,6 +127,7 @@ Issues tagged `api-approved` ARE actionable. Area labels and `${{ inputs.library
 **API surface rules:**
 - If you add or change **any public API** (new public class, method, property, constructor), you MUST also update the ref assembly at `src/libraries/System.Runtime/ref/System.Runtime.cs` (or the appropriate ref project). Find the existing type declaration and add the new members matching the pattern of similar types.
 - If the issue is labeled `api-approved`, the approved API shape is in the issue body — match it exactly.
+- **When implementing a new API, search `src/libraries/` for existing code that could benefit from it and update those call sites.** For example, if adding a new constructor overload, find places that construct the object and then immediately set the property, and update them to use the new overload. This is expected in dotnet/runtime PRs.
 
 **Test conventions:**
 - Use xUnit: `[Fact]` for single cases, `[Theory]` with `[InlineData]`/`[MemberData]` for parameterized.
