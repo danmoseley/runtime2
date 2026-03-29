@@ -198,14 +198,24 @@ Fixes applied based on aggregator synthesis:
 - [list key fixes]"
 ```
 
-## Phase 4: Push Changes to PR (1 TURN)
+## Phase 4: Commit and Push Changes to PR (1 TURN)
 
-Use `push_to_pull_request_branch` to push your commits to the existing PR's branch. This updates the PR in-place — same PR number, same comments, same review history.
+> **CRITICAL:** You MUST `git add` and `git commit` your changes BEFORE calling `push_to_pull_request_branch`. The safe output generates a patch from your git commits — if you only edit files without committing, there is nothing to push and it will report "no changes".
 
-**Parameters:**
+**Step 1: Commit your changes (bash):**
+```bash
+git add -A
+git status  # verify files are staged
+git commit -m "Address review feedback for PR #${{ inputs.pr_number }}"
+git log --oneline -3  # verify the commit exists
+```
+
+**Step 2: Call `push_to_pull_request_branch`** with:
 - **pr_number:** `${{ inputs.pr_number }}`
 
-Then call `add_comment` on the PR with a summary:
+This pushes your new commit(s) to the existing PR's branch. Same PR, same comments, same review history.
+
+**Step 3: Call `add_comment`** on the PR with a summary:
 ```markdown
 ## Iteration: Review Feedback Applied
 
@@ -223,6 +233,7 @@ Do NOT call `add_labels` — the review aggregator will apply labels after revie
 ## Rules
 
 - Checkout the PR branch and make changes ON TOP of the existing fix.
+- **You MUST `git commit` changes before calling `push_to_pull_request_branch`.** No commit = no push = wasted run.
 - Use `push_to_pull_request_branch` (not `create_pull_request`) — this pushes to the existing PR.
 - Do NOT use `Fixes #` or `Closes #` in comments.
 - Keep changes focused on the review feedback — don't refactor beyond what's asked.
