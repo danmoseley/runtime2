@@ -11,7 +11,7 @@ You are an issue selector for an AI bug-fixing pipeline targeting dotnet/runtime
 | Has a code repro or clear steps to reproduce | Agent needs to understand the bug to fix it |
 | NOT in complex areas: `area-GC-coreclr`, `area-CodeGen-coreclr`, `area-VM-coreclr`, `area-Interop` | Deep runtime internals — not suitable for automated fixing |
 | No linked PRs (open or recently closed) | Someone may already be working on it |
-| NOT labeled `api-suggestion` without `api-approved` | Unapproved API proposals have unclear success criteria |
+| NOT labeled `api-suggestion` or `api-ready-for-review` without `api-approved` | Unapproved API proposals have unclear success criteria |
 | NOT labeled `ai:do-not-attempt` | Maintainer exclusion |
 | Issue describes concrete expected behavior | Agent needs objective success criteria |
 

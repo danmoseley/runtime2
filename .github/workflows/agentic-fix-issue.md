@@ -261,7 +261,7 @@ Create a pull request using `create-pull-request` safe output in **this fork** (
 **Self-review:** Correctness ✅/⚠️ | Tests ✅/⚠️ | Breaking ✅/⚠️
 ```
 
-**Labels** (via `add-labels`): **AFTER** calling `create_pull_request`, call `add_labels` with **`item_number`** set to the PR number from `create_pull_request` output. You MUST call `create_pull_request` BEFORE `add_labels` — labels fail if the PR doesn't exist yet. Labels: one of `ai:ready-for-human`/`ai:failed`/`ai:rejected-early`, plus `ai:high-confidence`/`ai:medium-confidence`/`ai:low-confidence`. **IMPORTANT:** The `item_number` MUST be the PR number in THIS fork, NOT the upstream issue number. If you don't know the PR number, SKIP `add_labels` entirely — the aggregator will apply labels later.
+**Labels**: Do NOT call `add_labels` — the review aggregator will apply labels after reviewing. Just focus on `create_pull_request`.
 
 ## Rules
 
