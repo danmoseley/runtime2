@@ -59,6 +59,13 @@ namespace System.Collections.Immutable.Tests
             yield return new object[] { new[] { 1, 2, 3, 4 }, 2, 2 };
         }
 
+        [Fact]
+        public void IndexOf_StartIndexEqualsLength_CountZero_ReturnsMinusOne()
+        {
+            var arr = ImmutableArray.Create(1, 2, 3, 4);
+            Assert.Equal(-1, arr.IndexOf(2, 4, 0));
+        }
+
         [Theory]
         [MemberData(nameof(Int32EnumerableData))]
         public void Clear(IEnumerable<int> source)
