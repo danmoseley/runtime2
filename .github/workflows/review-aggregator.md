@@ -28,8 +28,12 @@ safe-outputs:
     target: "*"
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to aggregate reviews for'
+        required: true
+        type: number
 
 engine:
   id: copilot
@@ -40,19 +44,19 @@ engine:
 
 You aggregate reviews from specialist reviewer agents for PR changes in this repository. A reviewer workflow just completed — check if all reviews are in, then synthesize.
 
-## Step 1: Validate Trigger and Identify the PR
+## Step 1: Identify the PR
 
-This workflow triggers on ANY `issue_comment` event. You must filter early:
+The PR number is `${{ inputs.pr_number }}`. Verify it exists and is open:
 
-1. **Check this is a PR comment** (not a plain issue): run `gh pr view ${{ github.event.issue.number }} --json headRefName --jq '.headRefName' 2>/dev/null`. If this fails or returns empty, it's a plain issue — call `noop` and stop.
-2. **Check the branch matches `fix/**`**: the head ref from step above must start with `fix/`. If not, call `noop` and stop.
-3. **Check the comment is from a reviewer workflow**: use `gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }} --jq '.body'` to get the triggering comment body. Check if it contains `<!-- gh-aw-agentic-workflow: Code Review` or `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match — the framework appends metadata). If neither marker is found, call `noop` and stop.
+```bash
+gh pr view ${{ inputs.pr_number }} --json state,headRefName --jq '"\(.state) \(.headRefName)"'
+```
 
-The PR number is `${{ github.event.issue.number }}`.
+If the PR is not open, call `noop` and stop.
 
 ## Step 2: Check if All Reviews Are In
 
-Read the PR comments for PR #`${{ github.event.issue.number }}` and look for review markers from each specialist. The AWF framework auto-injects markers at the end of each comment:
+Read the PR comments for PR #`${{ inputs.pr_number }}` and look for review markers from each specialist. The AWF framework auto-injects markers at the end of each comment:
 - Code Review: look for `<!-- gh-aw-agentic-workflow: Code Review` (partial match — the framework appends metadata after the workflow name)
 - API Review: look for `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match)
 
