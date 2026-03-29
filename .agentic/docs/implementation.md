@@ -46,10 +46,18 @@ Aggregator sets ai:ready-for-human → human reviews final PR
 **Goal**: One issue flows through selector → fixer → reviews → aggregator → iteration → re-review → done, fully automated within GitHub, no human in the loop until `ai:ready-for-human`.
 
 ### Active Work
-- [x] **Validate iteration agent** — `push_to_pull_request_branch` works! Agent commits + calls push correctly (exp 30). **Blocked on fork repos** (`head.repo.fork=true`) — will work on dotnet/runtime. For fork testing, falls back to `create_pull_request`.
-- [ ] **Wire Reviews → Aggregator trigger** — `workflow_run` dispatcher (no PAT needed)
-- [ ] **Wire Aggregator → Iteration trigger** — `workflow_run` dispatcher (no PAT needed)
+- [x] **Validate iteration agent** — `push_to_pull_request_branch` works on non-fork repos (runtime2). **Blocked on fork repos** (`head.repo.fork=true`).
+- [x] **Wire Reviews → Aggregator trigger** — `dispatch-aggregator.yml` fires on code-review/api-review completion
+- [x] **Wire Aggregator → Iteration trigger** — `dispatch-iteration.yml` fires on aggregator completion (both success+failure)
+- [x] **Wire Fixer → Reviews trigger** — `dispatch-reviews.yml` fires on fixer completion, finds PR by `ai:agent-fix` label
+- [ ] **Full pipeline end-to-end** — In progress: PR #6 (issue #124968) running through fixer → reviews → aggregator → iteration
 - [ ] **Exit condition** — aggregator recognizes "no blocking issues" and sets `ai:ready-for-human` instead of looping
+
+### Issues Fixed (2026-03-29)
+- **Aggregator `add_comment` missing `item_number`** — added explicit JSON examples in prompt (Step 5)
+- **Iteration MCP session timeout** — tightened to 18-min constraint, build-once rule, 200+ line reads
+- **dispatch-iteration skipping on aggregator failure** — now fires on both success AND failure conclusions
+- **Fixer deduplication false positive** — fixer noop'd on #103468 because closed PR #5 existed; used fresh issue #124968
 
 ### Automation Triggers (implemented)
 `workflow_run` fires for AWF workflows triggered by real `pull_request` events. `workflow_dispatch` works with GITHUB_TOKEN since Sep 2022.
@@ -89,6 +97,8 @@ _Add ideas here. Copilot will see them on the next session._
 
 | # | Issue | Fixer | Reviews | Aggregator | Iteration | Result |
 |---|-------|-------|---------|------------|-----------|--------|
+| 37 | #124968 ImmutableArray.IndexOf | PR #6 ✅ | API ✅ Code ⏳ | ⏳ | ⏳ | First full chain on runtime2 |
+| 36 | #103468 DirectoryNotFoundException | noop ❌ | Ran against wrong PR #1 | — | — | Fixer dedup'd (saw closed PR #5) |
 | 30 | #88244 | PR #55 ✅ | API+Code ✅ | ✅ | ✅ agent correct, fork blocked | push_to_pr_branch validated |
 | 29 | #88244 | PR #55 ✅ | API+Code ✅ | ✅ | ❌ noop (no git commit) | prompt fix needed |
 | 28 | #88244 | PR #55 ✅ | API+Code ✅ | ✅ | ❌ noop (edit tool fail) | push_to_pr_branch infra works |
@@ -113,6 +123,9 @@ _Add ideas here. Copilot will see them on the next session._
 9. **Fixer quality improves with sibling pattern guidance** — "look at how TextWriter does it"
 10. **When hitting AWF limitations, search docs first** — github.github.com/gh-aw/reference/ before workarounds
 11. **`push_to_pull_request_branch` doesn't work on fork repos** — AWF checks `head.repo.fork` flag. Testing on danmoseley/runtime (fork) must use `create_pull_request`. Production on dotnet/runtime will work.
+12. **MCP session timeout ~25 min** — safe_outputs MCP server session expires. Agents must complete and call push within 18 min or lose all work.
+13. **Fixer deduplication is aggressive** — if any commits reference the issue (even on closed PRs), fixer noop's. Use fresh issues for testing.
+14. **Aggregator needs explicit JSON examples** — prose instructions alone insufficient for `add_comment` with `item_number` field. Agent follows JSON format examples reliably.
 
 ## Key Files
 

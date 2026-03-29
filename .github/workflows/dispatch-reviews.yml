@@ -1,7 +1,9 @@
 name: Dispatch Reviews After Fixer
 
 # PRs created by GITHUB_TOKEN don't trigger pull_request workflows.
-# This bridges the gap: when the fixer completes, dispatch reviews via workflow_dispatch.
+# workflow_run also won't fire for workflows dispatched by GITHUB_TOKEN.
+# So this workflow acts as a full orchestrator: dispatch reviews, poll for
+# completion, then dispatch the aggregator — all in one job.
 
 on:
   workflow_run:
@@ -9,10 +11,10 @@ on:
     types: [completed]
 
 jobs:
-  dispatch-reviews:
+  orchestrate-reviews:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 60
     steps:
       - name: Find PR created by fixer
         id: find-pr
@@ -38,6 +40,7 @@ jobs:
 
       - name: Dispatch Code Review
         if: steps.find-pr.outputs.found == 'true'
+        id: dispatch-cr
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -48,8 +51,20 @@ jobs:
             -f "pr_number=$PR_NUM"
           echo "✅ Code Review dispatched"
 
+          # Wait a moment then find the run ID
+          sleep 15
+          CR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/code-review.lock.yml/runs?per_page=5&status=in_progress" \
+            --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
+          if [ -z "$CR_RUN" ]; then
+            CR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/code-review.lock.yml/runs?per_page=5&status=queued" \
+              --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
+          fi
+          echo "Code Review run ID: $CR_RUN"
+          echo "run_id=$CR_RUN" >> "$GITHUB_OUTPUT"
+
       - name: Dispatch API Review
         if: steps.find-pr.outputs.found == 'true'
+        id: dispatch-ar
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -59,3 +74,168 @@ jobs:
             -R "${{ github.repository }}" \
             -f "pr_number=$PR_NUM"
           echo "✅ API Surface Review dispatched"
+
+          sleep 15
+          AR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/api-review.lock.yml/runs?per_page=5&status=in_progress" \
+            --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
+          if [ -z "$AR_RUN" ]; then
+            AR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/api-review.lock.yml/runs?per_page=5&status=queued" \
+              --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
+          fi
+          echo "API Review run ID: $AR_RUN"
+          echo "run_id=$AR_RUN" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for both reviews to complete
+        if: steps.find-pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CR_RUN="${{ steps.dispatch-cr.outputs.run_id }}"
+          AR_RUN="${{ steps.dispatch-ar.outputs.run_id }}"
+
+          echo "Waiting for Code Review ($CR_RUN) and API Review ($AR_RUN)..."
+
+          CR_DONE=false
+          AR_DONE=false
+
+          for i in $(seq 1 40); do
+            if [ "$CR_DONE" = "false" ] && [ -n "$CR_RUN" ]; then
+              CR_STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$CR_RUN" --jq '.status' 2>/dev/null || echo "unknown")
+              if [ "$CR_STATUS" = "completed" ]; then
+                CR_DONE=true
+                echo "✅ Code Review completed"
+              fi
+            fi
+
+            if [ "$AR_DONE" = "false" ] && [ -n "$AR_RUN" ]; then
+              AR_STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$AR_RUN" --jq '.status' 2>/dev/null || echo "unknown")
+              if [ "$AR_STATUS" = "completed" ]; then
+                AR_DONE=true
+                echo "✅ API Review completed"
+              fi
+            fi
+
+            if [ "$CR_DONE" = "true" ] && [ "$AR_DONE" = "true" ]; then
+              echo "Both reviews completed!"
+              exit 0
+            fi
+
+            echo "Poll $i/40: CR=$CR_DONE AR=$AR_DONE (sleeping 60s)"
+            sleep 60
+          done
+
+          echo "::warning::Timed out waiting for reviews after 40 min"
+          exit 1
+
+      # ── Phase 2: Dispatch Aggregator ───────────────────────────
+
+      - name: Dispatch Review Aggregator
+        if: steps.find-pr.outputs.found == 'true'
+        id: dispatch-agg
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          echo "Dispatching Review Aggregator for PR #$PR_NUM"
+          gh workflow run review-aggregator.lock.yml \
+            -R "${{ github.repository }}" \
+            -f "pr_number=$PR_NUM"
+          echo "✅ Aggregator dispatched"
+
+          sleep 15
+          AGG_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/review-aggregator.lock.yml/runs?per_page=5" \
+            --jq '[.workflow_runs[] | select(.status != "completed") | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
+          echo "Aggregator run ID: $AGG_RUN"
+          echo "run_id=$AGG_RUN" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for aggregator to complete
+        if: steps.find-pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          AGG_RUN="${{ steps.dispatch-agg.outputs.run_id }}"
+          echo "Waiting for Aggregator ($AGG_RUN)..."
+
+          for i in $(seq 1 20); do
+            if [ -n "$AGG_RUN" ]; then
+              STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$AGG_RUN" --jq '.status' 2>/dev/null || echo "unknown")
+              if [ "$STATUS" = "completed" ]; then
+                CONCLUSION=$(gh api "repos/${{ github.repository }}/actions/runs/$AGG_RUN" --jq '.conclusion' 2>/dev/null)
+                echo "✅ Aggregator completed: $CONCLUSION"
+                exit 0
+              fi
+            fi
+
+            echo "Poll $i/20: status=$STATUS (sleeping 30s)"
+            sleep 30
+          done
+
+          echo "::warning::Timed out waiting for aggregator after 10 min"
+          exit 1
+
+      # ── Phase 3: Dispatch Iteration (if needed) ────────────────
+
+      - name: Check if iteration needed
+        if: steps.find-pr.outputs.found == 'true'
+        id: check-iteration
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_ITERATIONS: 3
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+
+          LABELS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --jq '[.[].name] | join(",")')
+          echo "PR #$PR_NUM labels: $LABELS"
+
+          if ! echo "$LABELS" | grep -q "ai:needs-iteration"; then
+            echo "No ai:needs-iteration label — pipeline complete"
+            echo "needs_iteration=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Check iteration count
+          ITER_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+            --jq '[.[] | select(.body | test("Iteration.*Applied|push_to_pull_request"; "i"))] | length')
+          echo "Iteration count: $ITER_COUNT (max: $MAX_ITERATIONS)"
+
+          if [ "$ITER_COUNT" -ge "$MAX_ITERATIONS" ]; then
+            echo "Max iterations reached — stopping loop"
+            gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+              -X POST --input - <<< '{"labels":["ai:max-iterations-reached"]}' > /dev/null
+            echo "needs_iteration=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_iteration=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract fix instructions
+        if: steps.check-iteration.outputs.needs_iteration == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+
+          BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+            --jq '[.[] | select(.body | test("Review|review|API Surface"; "i"))] | map(.body) | join("\n\n---\n\n") // empty')
+
+          if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
+            BODY="Address the review feedback on this PR. Read the review comments carefully and fix all issues identified."
+          fi
+
+          echo "$BODY" | head -c 65000 > /tmp/fix_instructions.txt
+
+      - name: Dispatch iteration agent
+        if: steps.check-iteration.outputs.needs_iteration == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          INSTRUCTIONS=$(cat /tmp/fix_instructions.txt)
+
+          echo "Dispatching iteration agent for PR #$PR_NUM"
+          gh workflow run agentic-fix-iterate.lock.yml \
+            -R "${{ github.repository }}" \
+            -f "pr_number=$PR_NUM" \
+            -f "fix_instructions=$INSTRUCTIONS" \
+            -f "upstream_repo=dotnet/runtime"
+          echo "✅ Iteration agent dispatched for PR #$PR_NUM"
