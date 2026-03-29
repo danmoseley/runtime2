@@ -211,7 +211,8 @@ Use `edit` tool to: (1) add a new `[Fact]` or `[Theory]` test method that would 
 **Turn 4-5 — Build + run tests, fix if needed.**
 
 **Key rules:**
-- `${{ inputs.library }}` and area labels are hints — code may be elsewhere. Many `System.*` types live in `System.Private.CoreLib`.
+- `${{ inputs.library }}` and `${{ inputs.test_project }}` are **hints that may be wrong**. Verify paths exist before using them. If the test project doesn't exist at the specified path, search: `find src/libraries -name "*.Tests.csproj" | grep -i "<keyword>"` where keyword is the area name.
+- Many `System.*` types live in `System.Private.CoreLib` (under `src/libraries/System.Private.CoreLib/src/System/`). Tests for these types are often in `src/libraries/System.Runtime/tests/`.
 - Match the style of the file you're editing. Use `var` only when type is obvious. Allman braces. `nameof(...)` for exception args.
 - Write xUnit tests: `[Fact]` or `[Theory]` with `[InlineData]`. Method names: `Method_Condition_Expected`.
 - **If the edit tool fails** (ambiguous match): include MORE surrounding lines in `old_str` to make it unique. For ref assembly files with similar signatures, include the full signature plus context.
