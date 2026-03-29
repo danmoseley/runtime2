@@ -89,6 +89,8 @@ Deduplicate: if code-review and api-review flag the same issue (e.g., both menti
 
 Based on the synthesized review:
 
+**Iteration context:** Check if the PR has existing iteration comments (containing "Iteration: Review Feedback Applied"). If so, this is a re-review after iteration — evaluate the CURRENT code state, not prior issues. Prior `ai:needs-iteration` labels from earlier rounds should be replaced by the new outcome.
+
 **Confidence labels** (pick ONE):
 - `ai:high-confidence` — All reviewers pass, CI green, no blocking findings
 - `ai:medium-confidence` — Only warnings/suggestions, CI green
@@ -102,9 +104,9 @@ Based on the synthesized review:
 - `ai:needs-api-review` — if API approval missing or ref assembly not updated
 
 **Outcome label** (pick ONE):
-- `ai:ready-for-human` — high/medium confidence, no blockers, CI green
-- `ai:needs-iteration` — has blocking findings that the fixer should address
-- `ai:failed` — fundamental problems (won't compile, wrong approach, etc.)
+- `ai:ready-for-human` — high/medium confidence, no blockers, CI green. **This stops the iteration loop.**
+- `ai:needs-iteration` — has blocking findings that the fixer should address. **This triggers another iteration round.**
+- `ai:failed` — fundamental problems (won't compile, wrong approach, etc.). **This stops the loop with a failure.**
 
 ## Step 5: Post Summary and Apply Labels
 

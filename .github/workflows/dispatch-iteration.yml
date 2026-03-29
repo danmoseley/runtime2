@@ -65,11 +65,12 @@ jobs:
           echo "Could not determine PR number from aggregator run"
           echo "found=false" >> "$GITHUB_OUTPUT"
 
-      - name: Check PR labels for iteration need
+      - name: Check PR labels and iteration count
         if: steps.get-pr.outputs.found == 'true'
         id: check-labels
         env:
           GH_TOKEN: ${{ github.token }}
+          MAX_ITERATIONS: 3
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
 
@@ -77,11 +78,26 @@ jobs:
             --jq '[.[].name] | join(",")')
           echo "PR #$PR_NUM labels: $LABELS"
 
-          if echo "$LABELS" | grep -q "ai:needs-iteration"; then
-            echo "needs_iteration=true" >> "$GITHUB_OUTPUT"
-          else
+          if ! echo "$LABELS" | grep -q "ai:needs-iteration"; then
             echo "No ai:needs-iteration label — skipping iteration dispatch"
             echo "needs_iteration=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Count existing iteration comments to enforce max cap
+          ITER_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+            --jq '[.[] | select(.body | test("Iteration: Review Feedback Applied"; "i"))] | length')
+          echo "Iteration count so far: $ITER_COUNT (max: $MAX_ITERATIONS)"
+
+          if [ "$ITER_COUNT" -ge "$MAX_ITERATIONS" ]; then
+            echo "Max iterations ($MAX_ITERATIONS) reached — adding ai:max-iterations-reached label"
+            gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+              -X POST --input - <<< '{"labels":["ai:max-iterations-reached"]}' > /dev/null
+            gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments" \
+              -X POST --input - <<< "{\"body\":\"⚠️ **Max iterations reached ($MAX_ITERATIONS).** This PR needs human review to proceed.\n\nThe automated iteration loop has been stopped to prevent unbounded cost.\"}" > /dev/null
+            echo "needs_iteration=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_iteration=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Extract fix instructions from aggregator comment
