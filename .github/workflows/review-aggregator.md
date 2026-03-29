@@ -46,7 +46,7 @@ This workflow triggers on ANY `issue_comment` event. You must filter early:
 
 1. **Check this is a PR comment** (not a plain issue): run `gh pr view ${{ github.event.issue.number }} --json headRefName --jq '.headRefName' 2>/dev/null`. If this fails or returns empty, it's a plain issue — call `noop` and stop.
 2. **Check the branch matches `fix/**`**: the head ref from step above must start with `fix/`. If not, call `noop` and stop.
-3. **Check the comment is from a reviewer workflow**: read the triggering comment body and check if it contains `<!-- gh-aw-agentic-workflow: Code Review` or `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match — the framework appends metadata). If neither marker is found, call `noop` and stop.
+3. **Check the comment is from a reviewer workflow**: use `gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }} --jq '.body'` to get the triggering comment body. Check if it contains `<!-- gh-aw-agentic-workflow: Code Review` or `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match — the framework appends metadata). If neither marker is found, call `noop` and stop.
 
 The PR number is `${{ github.event.issue.number }}`.
 
