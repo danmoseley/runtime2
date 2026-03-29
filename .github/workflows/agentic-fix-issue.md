@@ -126,8 +126,9 @@ Issues tagged `api-approved` ARE actionable. Area labels and `${{ inputs.library
 
 **API surface rules:**
 - If you add or change **any public API** (new public class, method, property, constructor), you MUST also update the ref assembly at `src/libraries/System.Runtime/ref/System.Runtime.cs` (or the appropriate ref project). Find the existing type declaration and add the new members matching the pattern of similar types.
-- If the issue is labeled `api-approved`, the approved API shape is in the issue body — match it exactly.
+- If the issue is labeled `api-approved`, the approved API shape is in the issue body — implement ALL approved members, not just one. If the approved shape has multiple overloads (e.g., with and without `IEqualityComparer`), implement ALL of them. Match parameter names, types, and ordering exactly.
 - **When implementing a new API, search `src/libraries/` for existing code that could benefit from it and update those call sites.** For example, if adding a new constructor overload, find places that construct the object and then immediately set the property, and update them to use the new overload. This is expected in dotnet/runtime PRs.
+- **Follow existing patterns in the same file.** If existing methods use `ThrowHelper.ThrowArgumentNullException`, do the same. If they use `ArgumentNullException.ThrowIfNull`, match that. Copy the validation pattern from the nearest sibling method.
 
 **Test conventions:**
 - Use xUnit: `[Fact]` for single cases, `[Theory]` with `[InlineData]`/`[MemberData]` for parameterized.
@@ -260,7 +261,7 @@ Create a pull request using `create-pull-request` safe output in **this fork** (
 **Self-review:** Correctness ✅/⚠️ | Tests ✅/⚠️ | Breaking ✅/⚠️
 ```
 
-**Labels** (via `add-labels`): **AFTER** calling `create_pull_request`, call `add_labels` with **`item_number`** set to the PR number from `create_pull_request` output. You MUST call `create_pull_request` BEFORE `add_labels` — labels fail if the PR doesn't exist yet. Labels: one of `ai:ready-for-human`/`ai:failed`/`ai:rejected-early`, plus `ai:high-confidence`/`ai:medium-confidence`/`ai:low-confidence`. If you don't have the PR number, use `item_number: ${{ inputs.issue_number }}` to label the source issue instead.
+**Labels** (via `add-labels`): **AFTER** calling `create_pull_request`, call `add_labels` with **`item_number`** set to the PR number from `create_pull_request` output. You MUST call `create_pull_request` BEFORE `add_labels` — labels fail if the PR doesn't exist yet. Labels: one of `ai:ready-for-human`/`ai:failed`/`ai:rejected-early`, plus `ai:high-confidence`/`ai:medium-confidence`/`ai:low-confidence`. **IMPORTANT:** The `item_number` MUST be the PR number in THIS fork, NOT the upstream issue number. If you don't know the PR number, SKIP `add_labels` entirely — the aggregator will apply labels later.
 
 ## Rules
 
