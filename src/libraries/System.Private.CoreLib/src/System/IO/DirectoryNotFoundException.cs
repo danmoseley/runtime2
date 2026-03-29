@@ -17,6 +17,8 @@ namespace System.IO
     [TypeForwardedFrom("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")]
     public class DirectoryNotFoundException : IOException
     {
+        private readonly string? _directoryPath;
+
         public DirectoryNotFoundException()
             : base(SR.Arg_DirectoryNotFoundException)
         {
@@ -35,11 +37,35 @@ namespace System.IO
             HResult = HResults.COR_E_DIRECTORYNOTFOUND;
         }
 
+        public DirectoryNotFoundException(string? message, string? directoryPath)
+            : base(message ?? SR.Arg_DirectoryNotFoundException)
+        {
+            HResult = HResults.COR_E_DIRECTORYNOTFOUND;
+            _directoryPath = directoryPath;
+        }
+
+        public DirectoryNotFoundException(string? message, string? directoryPath, Exception? innerException)
+            : base(message ?? SR.Arg_DirectoryNotFoundException, innerException)
+        {
+            HResult = HResults.COR_E_DIRECTORYNOTFOUND;
+            _directoryPath = directoryPath;
+        }
+
+        public string? DirectoryPath => _directoryPath;
+
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId, UrlFormat = Obsoletions.SharedUrlFormat)]
         [EditorBrowsable(EditorBrowsableState.Never)]
         protected DirectoryNotFoundException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
+            _directoryPath = info.GetString("DirectoryPath");
+        }
+
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId, UrlFormat = Obsoletions.SharedUrlFormat)]
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+            info.AddValue("DirectoryPath", _directoryPath, typeof(string));
         }
     }
 }

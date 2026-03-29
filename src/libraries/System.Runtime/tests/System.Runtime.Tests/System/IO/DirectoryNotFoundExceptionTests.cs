@@ -15,6 +15,7 @@ namespace System.IO.Tests
         {
             var exception = new DirectoryNotFoundException();
             ExceptionHelpers.ValidateExceptionProperties(exception, hResult: HResults.COR_E_DIRECTORYNOTFOUND, validateMessage: false);
+            Assert.Null(exception.DirectoryPath);
         }
 
         [Fact]
@@ -23,6 +24,7 @@ namespace System.IO.Tests
             string message = "That page was missing from the directory.";
             var exception = new DirectoryNotFoundException(message);
             ExceptionHelpers.ValidateExceptionProperties(exception, hResult: HResults.COR_E_DIRECTORYNOTFOUND, message: message);
+            Assert.Null(exception.DirectoryPath);
         }
 
         [Fact]
@@ -32,6 +34,30 @@ namespace System.IO.Tests
             var innerException = new Exception("Inner exception");
             var exception = new DirectoryNotFoundException(message, innerException);
             ExceptionHelpers.ValidateExceptionProperties(exception, hResult: HResults.COR_E_DIRECTORYNOTFOUND, innerException: innerException, message: message);
+            Assert.Null(exception.DirectoryPath);
+        }
+
+        [Fact]
+        public static void Ctor_String_DirectoryPath()
+        {
+            string message = "Missing directory.";
+            string directoryPath = "/tmp/testdir";
+            var exception = new DirectoryNotFoundException(message, directoryPath);
+            Assert.Equal(message, exception.Message);
+            Assert.Equal(directoryPath, exception.DirectoryPath);
+            Assert.Null(exception.InnerException);
+        }
+
+        [Fact]
+        public static void Ctor_String_DirectoryPath_Exception()
+        {
+            string message = "Missing directory.";
+            string directoryPath = "/tmp/testdir";
+            var innerException = new Exception("Inner exception");
+            var exception = new DirectoryNotFoundException(message, directoryPath, innerException);
+            Assert.Equal(message, exception.Message);
+            Assert.Equal(directoryPath, exception.DirectoryPath);
+            Assert.Equal(innerException, exception.InnerException);
         }
     }
 }
