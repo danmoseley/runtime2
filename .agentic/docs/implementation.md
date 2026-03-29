@@ -1,176 +1,115 @@
-# Agentic Bug-Fixing Pipeline: Implementation Checklist
+# Agentic Bug-Fixing Pipeline — Roadmap & Status
 
-Companion to `agentic.design.md`. Tracks what's needed to get from design to first fix.
+Shared live doc. Dan can add ideas/notes here; Copilot keeps status current.
+Companion to `design.md`.
 
-## Discovery (completed)
-
-- [x] Fork `danmoseley/runtime` is clean, has upstream remote, Actions enabled
-- [x] `gh aw` extension installed (`gh extension install github/gh-aw`)
-- [x] Upstream workflows have fork guards (`github.repository == 'dotnet/runtime'`) — no need to disable them
-- [x] Agentic workflow format understood (YAML frontmatter + markdown, compiled via `gh aw compile`)
-- [x] Existing skills in `.github/skills/` catalogued (code-review, ci-analysis, issue-triage, etc.)
-
-## Human Setup (Dan, one-time, ~10 min) — DONE
-
-- [x] **`gh aw init`** — already initialized (inherited from upstream; `gh aw status` shows `code-review` and `copilot-echo` active)
-- [x] **PAT secret** — `COPILOT_GITHUB_TOKEN` added as fine-grained PAT scoped to `danmoseley/runtime` with Copilot Requests (account-level), Contents, PRs, Issues, Workflows read/write. Second upstream-isolation PAT deferred to later.
-- [x] **Verify agentic workflows are enabled** — confirmed via `gh aw status`
-- [x] **Clean up stray files** — done (removed `test_depth2000.cs`, `test_depth2000.csproj`)
-
-## Phase 1: Golden Build (plain GitHub Actions — no agentic needed)
-
-**Goal:** Full build of clr+libs, compressed artifacts uploaded as a GitHub Release.
-
-### Copilot writes:
-- [x] `.github/workflows/agentic-golden-build.yml`
-  - Triggers: `workflow_dispatch` + `schedule` (weekly Monday 6 UTC)
-  - Steps: blobless clone, reset to upstream, re-merge `agentic/infra`, force-push, `build.sh -subset clr+libs -c Release` + `libs -c Debug`, `zstd --ultra -22`, `split` if needed, `gh release create`, delete old releases
-  - Includes disk space cleanup step (removes Android SDK, Docker images, etc.)
-  - Risk: disk space on `ubuntu-latest` (~14GB free, build produces ~11GB). May need larger runner.
-
-### Validate (PoC 1):
-- [ ] Trigger manually, observe: does it complete? How long? Compressed size? Needs splitting?
-  - **IN PROGRESS** — run 23669709875 triggered, waiting for results
-  - Previous failures: shallow clone broke merge (fixed: blobless clone), missing git identity (fixed: git config), stale force-push-with-lease race (fixed: retrigger)
-- [ ] Record numbers: wall-clock, artifact size, compressed size
-
-## Phase 2: Minimal CI (plain GitHub Actions)
-
-**Goal:** Download golden artifacts, rebuild one library, run its tests.
-
-### Copilot writes:
-- [x] `.github/workflows/agentic-libs-test.yml`
-  - Triggers: `workflow_dispatch` (inputs: `library`, `test_project`)
-  - Steps: download golden release, decompress, rebuild single library, run tests in the specified `test_project`
-  - Runs Release and Debug in parallel (two jobs)
-  - Uses SHA-pinned `actions/checkout`
-  - Also: `validate_regression` mode (run test on main without fix, confirm failure) — **deferred to later iteration**
-
-### Validate (PoC 2):
-- [ ] Run against an unchanged library (should be no-op rebuild + passing tests)
-- [ ] Make a trivial change, re-run — verify incremental build works
-- [ ] Record: download+decompress time, build time, test time
-
-## Phase 3: Skills & Agents
-
-**Goal:** Prompt files in `.agentic/skills/` that define each agent's behavior.
-
-### Copilot writes:
-- [ ] `.agentic/skills/select-issues.md` — issue selector prompt (criteria, heuristics, evaluation)
-- [ ] `.agentic/skills/fix-issue.md` — fix agent instructions (read issue, find code, implement fix, write tests)
-- [ ] `.agentic/skills/review-correctness.md` — correctness review
-- [ ] `.agentic/skills/review-breaking.md` — breaking change detection
-- [ ] `.agentic/skills/review-style.md` — style/consistency review
-- [ ] `.agentic/skills/review-primary.md` — primary reviewer (synthesizes aspect reviews, produces verdict)
-
-### Deferred (not needed for Eon 0):
-- [ ] `.agentic/skills/review-security.md`
-- [ ] `.agentic/skills/review-perf.md`
-- [ ] Performance review agent
-- [ ] Issue selector agent / batch orchestrator
-
-## Phase 4: Fix Workflow (agentic)
-
-**Goal:** The main agentic workflow that orchestrates fix → CI → review → tag.
-
-### Copilot writes:
-- [ ] `.github/workflows/agentic-fix-issue.md` — the core loop
-  - Input: issue number (manual for Eon 0)
-  - Creates branch, spawns fix agent, triggers CI, spawns review agents, tags PR
-  - Engine: cheap model (Haiku 4.5) for fix, free models for aspect review, Sonnet for primary review
-- [ ] Compile: `gh aw compile`
-
-### Validate (PoC 3 — fake issue):
-- [ ] Create fake issue in fork (introduce a known bug, file issue describing it)
-- [ ] Run `gh aw run agentic-fix-issue` with that issue number
-- [ ] Debug: does fix agent find the code? Does CI run? Do reviews fire? Does PR get created?
-- [ ] This is where most debugging will happen
-
-## Phase 5: First Real Fix (Eon 0 complete → Eon 1)
-
-- [ ] Pick one real upstream issue (known-easy, ideally one already fixed by a human for comparison)
-- [ ] Run the pipeline
-- [ ] Analyze: fix quality, review quality, time, cost
-- [ ] Write up learnings
-
-## Labels (one-time, can be scripted) — DONE
-
-All 14 `ai:*` labels created in `danmoseley/runtime` via `gh label create` with 2s delay between calls (to avoid rate limiting). Upstream `area-*` labels NOT cloned (`gh label clone` crashed with goroutine error — defer to if/when needed).
-
-```powershell
-cd C:\git\runtime
-
-# Clone area-* labels from upstream (preserves names and colors)
-gh label clone dotnet/runtime --repo danmoseley/runtime
-
-# Our custom labels (ai:* prefix) — must match agentic.design.md § Label Setup
-# Terminal states
-gh label create "ai:ready-for-human" --color 0E8A16 --description "PR has passed all automated review gates"
-gh label create "ai:failed" --color EEEEEE --description "Agent attempted fix but could not pass review gate"
-gh label create "ai:rejected-early" --color EEEEEE --description "Agent determined issue already fixed or not reproducible"
-# Confidence
-gh label create "ai:high-confidence" --color 0E8A16 --description "All reviews passed, straightforward fix"
-gh label create "ai:medium-confidence" --color FBCA04 --description "Minor concerns flagged"
-gh label create "ai:low-confidence" --color D93F0B --description "Significant concerns, needs careful review"
-# Characteristics
-gh label create "ai:quick-review" --color C5DEF5 --description "Small diff, all checks green"
-gh label create "ai:needs-domain-expertise" --color D4C5F9 --description "Touches specialized area"
-gh label create "ai:longer-review" --color D4C5F9 --description "Larger diff or subtle concerns"
-gh label create "ai:has-perf-concern" --color FBCA04 --description "Performance reviewer flagged something"
-gh label create "ai:has-breaking-concern" --color D93F0B --description "Breaking change flagged"
-gh label create "ai:needs-broader-tests" --color FBCA04 --description "May need tests beyond scoped fork CI"
-gh label create "ai:alternative-suggested" --color C5DEF5 --description "Reviewer suggested different approach"
-gh label create "ai:security-notice" --color D93F0B --description "Security-sensitive finding"
-```
-
-## Infrastructure Branch
-
-All experiment files live on `agentic/infra` branch. Fork `main` is rebuilt as `upstream/main + merge agentic/infra` by the golden build workflow. Commits on `main` only are lost on next golden build.
-
-## Lessons Learned (during setup)
-
-1. **Shallow clones break merge** — `git clone --depth=1` can't find merge base. Use `--filter=blob:none` (blobless clone) instead.
-2. **GitHub Actions runners have no git identity** — must `git config user.name/email` before any commit/merge.
-3. **`--force-with-lease` is race-prone** — if another PR merges between clone and push, it correctly rejects. Retrigger is fine.
-4. **SHA-pin actions** — use commit SHAs not version tags for supply chain security (`actions/checkout@34e11487...`).
-5. **Fork only allows squash merge** (inherited from upstream settings) — doesn't affect our git-level operations.
-6. **`gh label clone` is buggy** — crashes with goroutine error on large repos. Create labels individually with delay.
-
-## Open Questions to Resolve During Implementation
-
-1. **Disk space for golden build** — `ubuntu-latest` has ~14GB free. Build produces ~11GB artifacts. Very tight. May need a larger runner — check [GitHub's available runner labels](https://docs.github.com/en/actions/using-github-hosted-runners) for the org's configured larger runners (labels vary by org/plan). PoC 1 will answer this.
-2. **Agentic workflow dispatching another workflow** — can `agentic-fix-issue.md` trigger `agentic-libs-test.yml` and wait for results? Or does the agentic workflow run CI steps inline? Need to check `gh aw` capabilities.
-3. **Context window for fix agent** — how much of the issue + source code + review feedback fits? The cheap model needs a large context window (≥100K tokens). Should be fine for single-library fixes. Monitor during PoC.
-4. **PAT scope** — enforce upstream isolation at the token level. Ideal: two fine-grained PATs — one read-only for upstream, one read-write for fork only. A single PAT with write access to both repos undermines the isolation rule. Alternatively, a GitHub App with per-installation permissions achieves the same separation. Verify the exact fine-grained permission set and document it.
-5. **Agentic workflow billing in fork** — does using agentic workflows in a personal fork consume the enterprise premium budget, or the user's personal budget? Need to verify.
-
-## Key Decisions Already Made
-
-- Fork: `danmoseley/runtime` (not a new fork)
-- Upstream workflows: leave as-is (fork guards make them inert)
-- Infra files: `agentic-` prefix, purely additive, never modify upstream files
-- Golden build: GitHub Releases, `zstd --ultra -22`, split if >2GB
-- Fix branches from fork `main` (not upstream/main) — clean PR diffs
-- N issues = N PRs (always, including early rejections via `--allow-empty`)
-- Eon model: hard boundaries, force-reset fork main between eons
-- Learn & tune between eons, fresh logging per eon
-
-## Files We'll Create
-
-Workflows use the `agentic-` prefix; skill prompts live under `.agentic/skills/`.
+## Pipeline Flow
 
 ```
-.github/workflows/
-  agentic-golden-build.yml        # Phase 1 - plain Actions
-  agentic-libs-test.yml           # Phase 2 - plain Actions
-  agentic-fix-issue.md            # Phase 4 - agentic workflow
-  agentic-fix-issue.lock.yml      # Phase 4 - compiled from .md
-
-.agentic/skills/
-  select-issues.md                # Phase 3 — issue selection criteria
-  fix-issue.md                    # Phase 3 — fix agent instructions
-  review-correctness.md           # Phase 3
-  review-breaking.md              # Phase 3
-  review-style.md                 # Phase 3
-  review-primary.md               # Phase 3
+Human kicks off selector (GitHub Actions UI or gh CLI)
+  ↓
+Selector → picks issues → auto-dispatches fixer(s)
+  ↓
+Fixer → creates PR with code + tests
+  ↓ (pull_request: opened)
+Code Review + API Review (parallel, ~3-20 min)
+  ↓ (GAP: needs automation trigger)
+Review Aggregator → synthesizes, labels, posts fix instructions
+  ↓ (GAP: needs automation trigger)
+Iteration Agent → applies fixes to same PR
+  ↓ (pull_request: synchronize)
+Reviews fire again → Aggregator → loop until satisfied
+  ↓
+Aggregator sets ai:ready-for-human → human reviews final PR
 ```
+
+## What's Working (validated through experiments)
+
+- [x] **Golden Build** — weekly, uploads clr+libs artifacts as GitHub Release
+- [x] **Issue Selector** — picks api-approved issues, area- prefix handling, exclusion list
+- [x] **Fixer Agent** — creates PRs with code + tests (~7-10 min for easy issues)
+- [x] **Code Review** — thorough, catches real bugs (~9-21 min, hits AWF timeout sometimes)
+- [x] **API Surface Review** — fast, excellent quality (~3 min)
+- [x] **Review Aggregator** — synthesizes, deduplicates, sets labels (~3 min)
+- [x] **Labels** — all 14 `ai:*` labels created in fork
+- [x] **safe_outputs** — fixer/iterate create PRs, reviews post comments, aggregator sets labels
+
+## Current Sprint: Smooth Single-Issue Loop
+
+**Goal**: One issue flows through selector → fixer → reviews → aggregator → iteration → re-review → done, fully automated within GitHub, no human in the loop until `ai:ready-for-human`.
+
+### Active Work
+- [ ] **Validate iteration agent** — uses `create_pull_request` with same branch name to update existing PR (just fixed, testing now on PR #55)
+- [ ] **Wire Reviews → Aggregator trigger** — currently manual dispatch; need automation
+- [ ] **Wire Aggregator → Iteration trigger** — currently manual dispatch; need automation
+- [ ] **Exit condition** — aggregator recognizes "no blocking issues" and sets `ai:ready-for-human` instead of looping
+
+### Automation Gaps (two triggers needed)
+| Gap | Options | Notes |
+|-----|---------|-------|
+| Reviews → Aggregator | (a) PAT-triggered reviews so `workflow_run` fires, (b) scheduled polling workflow, (c) `repository_dispatch` | GITHUB_TOKEN events don't trigger other workflows |
+| Aggregator → Iteration | Aggregator dispatches `agentic-fix-iterate` via GH API | Aggregator knows the fix instructions to pass |
+
+## Backlog — Near Term
+
+- [ ] **Remove library/test_project from fixer inputs** — fixer discovers them from issue context (namespace → library → test project). Selector then only outputs issue numbers.
+- [ ] **Re-enable CI** — once iteration agent can respond to CI failures
+- [ ] **Re-enable auto-dispatch** (selector → fixer chain) — disabled to reduce noise during single-issue focus
+- [ ] **Inline code review instructions** — code review loads SKILL.md (extra turn, ~15 min overhead). Inlining could cut to ~5-10 min.
+- [ ] **Max iteration cap** — prevent infinite loops (e.g., 3 iterations then `ai:failed`)
+
+## Backlog — Future
+
+- [ ] **Batch mode** — "fix 50 issues in IO, JSON, Xml" with parallel fixers
+- [ ] **Fixer learns from reviews** — when reviewers repeatedly flag patterns (e.g., "missing try/catch in DisposeAsync"), add to fixer prompt automatically
+- [ ] **Security reviewer** — injection, path traversal, unsafe patterns
+- [ ] **Perf reviewer** — allocation patterns, hot path, benchmark suggestions
+- [ ] **"Should we fix this?" reviewer** — is the issue real? by-design? already fixed?
+- [ ] **Cost tracking** — tokens, time, $ per issue
+- [ ] **Regression validation** — run test on main WITHOUT fix, confirm it fails, then with fix, confirm it passes
+- [ ] **Upstream PR creation** — when `ai:ready-for-human` and human approves, auto-create PR on dotnet/runtime
+- [ ] **Scheduled selector** — cron trigger picks N issues daily
+
+## Dan's Ideas / Notes
+
+_Add ideas here. Copilot will see them on the next session._
+
+-
+
+## Experiments Log
+
+| # | Issue | Fixer | Reviews | Aggregator | Iteration | Result |
+|---|-------|-------|---------|------------|-----------|--------|
+| 26+ | #88244 TextReader IAsyncDisposable | PR #55 ✅ | API+Code ✅ | Pending | Pending | In progress |
+| 26 | #88244 | PR #54 ✅ | API+Code ✅ | ✅ | ❌ git push failed | Iteration fix needed |
+| 24 | #120596 LINQ Join | PR #51 ✅ | API+Code ✅ | ✅ | PR #53 (safe_outputs fail) | Full pipeline ~25m |
+| 23 | #124968 ImmutableArray.IndexOf | PR #47 ✅ | Caught Builder bugs | ✅ | PR #49 ✅ | Full pipeline validated |
+| 23 | #125363 Regex \\R | PR #48 ⚠️ | Caught 3 bugs + RTL | ✅ needs-changes | Not attempted | Complex issue |
+| 22 | #103468 DirectoryNotFoundException | PR #45 ✅ | API+Code ✅ | ✅ | Not attempted | Good quality |
+| 21 | #103468 | PR #44 ✅ | 7→10 findings over 2 rounds | N/A | Manual | Review iteration validated |
+
+## Lessons Learned
+
+1. **AWF sandbox cannot `git push`** — must use `create_pull_request` safe output for all code changes
+2. **AWF agent hangs if no safe output tool called** — must always call `create_pull_request` or `noop`
+3. **GitHub API rate limit on GHA runners** — use HTML URLs for public issue fetch, not API
+4. **GITHUB_TOKEN events don't trigger other workflows** — need PAT or alternative for workflow chaining
+5. **dotnet/runtime test paths are non-obvious** — System.IO types tested under System.Runtime/tests/
+6. **Code review takes 3-4x longer than API review** — loads SKILL.md file (extra turn + large context)
+7. **`create_pull_request` with existing branch name updates the PR** — key for iteration (validating now)
+8. **1 issue = 1 PR** — iteration pushes to same PR, never creates new ones
+9. **Fixer quality improves with sibling pattern guidance** — "look at how TextWriter does it"
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `.github/workflows/agentic-fix-issue.md` | Fixer agent prompt |
+| `.github/workflows/agentic-fix-iterate.md` | Iteration agent prompt |
+| `.github/workflows/code-review.md` | Code reviewer |
+| `.github/workflows/api-review.md` | API surface reviewer |
+| `.github/workflows/review-aggregator.md` | Review synthesizer + labels |
+| `.github/workflows/agentic-issue-selector.md` | Issue picker |
+| `.github/workflows/auto-dispatch-fixers.yml` | Selector → fixer chain (disabled) |
+| `.github/workflows/ci-build-test.yml` | CI build+test (disabled) |
+| `.agentic/docs/design.md` | Architecture design doc |
