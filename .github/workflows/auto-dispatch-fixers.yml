@@ -7,10 +7,15 @@ on:
   workflow_run:
     workflows: ["Issue Selector Agent"]
     types: [completed]
+  issues:
+    types: [opened]
 
 jobs:
   dispatch:
-    if: github.event.workflow_run.conclusion == 'success'
+    # Run if: (1) workflow_run from selector succeeded, OR (2) issue opened with "Issue Selection Report" in title
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'issues' && contains(github.event.issue.title, 'Issue Selection Report'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

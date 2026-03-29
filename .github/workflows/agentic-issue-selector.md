@@ -75,7 +75,7 @@ You are an issue selector for an AI bug-fixing pipeline targeting dotnet/runtime
 
 In your FIRST turn, do ALL of these in parallel:
 1. Read `.agentic/skills/select-issues.md` from this repository for selection criteria
-2. Search `dotnet/runtime` for open issues with each area label in `${{ inputs.areas }}`
+2. Search `dotnet/runtime` for open issues with each area label in `${{ inputs.areas }}`. **NOTE:** In dotnet/runtime, area labels use the `area-` prefix (e.g., `System.IO` → label `area-System.IO`). Always prepend `area-` when searching by label.
 3. Check `danmoseley/runtime` fork for existing `fix/issue-*` branches (to skip already-attempted issues)
 
 Do NOT wait for the criteria file before searching — read it and search simultaneously.
@@ -97,7 +97,7 @@ If extra_guidance says to avoid specific issue numbers, you MUST NOT select thos
 
 Using results from Step 1 searches and the criteria from the selection skill. For each candidate, use `issue_read` (method: `get`) to read the full issue body and comments:
 
-1. Search for issues with each area label specified in `${{ inputs.areas }}`
+1. Search for issues with each area label specified in `${{ inputs.areas }}` (remember to use `area-` prefix: e.g., `System.IO` → search for label `area-System.IO`)
 2. Apply the hard filters from the selection skill:
    - Has repro or clear steps
    - Not in excluded complex areas (GC, CodeGen, VM, Interop)
