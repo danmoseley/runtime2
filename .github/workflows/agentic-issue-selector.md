@@ -65,15 +65,21 @@ You are an issue selector for an AI bug-fixing pipeline targeting dotnet/runtime
 
 ## Step 1: Load Selection Criteria and Start Searching (SAME TURN)
 
-**CRITICAL: The `gh` CLI is NOT authenticated. Use GitHub MCP tools (`search_issues`, `list_issues`, `get_file_contents`, `list_branches`) for ALL GitHub reads.**
+**CRITICAL: The `gh` CLI is NOT authenticated. Use GitHub MCP tools OR `web-fetch` with GitHub REST API for ALL reads.**
 
-In your FIRST turn, do ALL of these in parallel using MCP tools:
-1. Use `get_file_contents` to read `.agentic/skills/select-issues.md` from this repository for selection criteria
-2. Use `search_issues` to find open issues in `${{ inputs.upstream_repo }}` with each area label in `${{ inputs.areas }}` — search for `label:<area-label> state:open` for each area
-3. Use `list_branches` to check this fork for existing `fix/issue-*` branches (to skip already-attempted issues)
+**Tool priority:** Try MCP tools first (`search_issues`, `list_issues`, `get_file_contents`, `list_branches`). If MCP tools are unavailable or return errors, fall back to `web-fetch` with these GitHub REST API URLs:
+- Search issues: `https://api.github.com/search/issues?q=repo:dotnet/runtime+is:issue+is:open+label:LABEL`
+- Read issue: `https://api.github.com/repos/dotnet/runtime/issues/NUMBER`
+- List branches: `https://api.github.com/repos/danmoseley/runtime/branches?per_page=100`
+- Read file: `https://api.github.com/repos/danmoseley/runtime/contents/.agentic/skills/select-issues.md`
+
+In your FIRST turn, do ALL of these in parallel:
+1. Read `.agentic/skills/select-issues.md` from this repository for selection criteria
+2. Search `dotnet/runtime` for open issues with each area label in `${{ inputs.areas }}`
+3. Check `danmoseley/runtime` fork for existing `fix/issue-*` branches (to skip already-attempted issues)
 
 Do NOT wait for the criteria file before searching — read it and search simultaneously.
-Do NOT use `gh` CLI commands — they will fail. Use MCP tools only.
+Do NOT use `gh` CLI commands — they will fail.
 
 ## Step 2: Human Guidance for This Batch
 

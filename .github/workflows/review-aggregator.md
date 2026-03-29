@@ -46,15 +46,20 @@ You aggregate reviews from specialist reviewer agents for PR changes in this rep
 
 ## Step 1: Identify the PR
 
-**CRITICAL: The `gh` CLI is NOT authenticated. Use GitHub MCP tools for ALL GitHub reads.**
+**CRITICAL: The `gh` CLI is NOT authenticated. Use GitHub MCP tools OR `web-fetch` with GitHub REST API for ALL reads.**
 
-The PR number is `${{ inputs.pr_number }}`. Use the MCP `pull_request_read` tool (method: `get`, owner: `danmoseley`, repo: `runtime`, pullNumber: `${{ inputs.pr_number }}`) to verify it exists and is open.
+**Tool priority:** Try MCP tools first (`pull_request_read`, `issue_read`). If MCP tools are unavailable or return errors, fall back to `web-fetch` with these GitHub REST API URLs:
+- Read PR: `https://api.github.com/repos/danmoseley/runtime/pulls/${{ inputs.pr_number }}`
+- List PR comments: `https://api.github.com/repos/danmoseley/runtime/issues/${{ inputs.pr_number }}/comments?per_page=100`
+- PR check runs: `https://api.github.com/repos/danmoseley/runtime/commits/HEAD/check-runs` (get PR head SHA first)
+
+The PR number is `${{ inputs.pr_number }}`. Verify it exists and is open.
 
 If the PR is not open, call `noop` and stop.
 
 ## Step 2: Check if All Reviews Are In
 
-Use the MCP `pull_request_read` tool (method: `get_comments`, owner: `danmoseley`, repo: `runtime`, pullNumber: `${{ inputs.pr_number }}`) to read all PR comments. Look for review markers from each specialist. The AWF framework auto-injects markers at the end of each comment:
+Read all comments on PR #`${{ inputs.pr_number }}` and look for review markers from each specialist. The AWF framework auto-injects markers at the end of each comment:
 - Code Review: look for `<!-- gh-aw-agentic-workflow: Code Review` (partial match — the framework appends metadata after the workflow name)
 - API Review: look for `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match)
 
