@@ -28,20 +28,36 @@ jobs:
           WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
           echo "Triggered by: $WORKFLOW_NAME (run $RUN_ID)"
 
-          # The triggering workflow was a pull_request workflow.
-          # Get PR number from the workflow_run event payload directly.
-          PR_JSON=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" \
+          # Try pull_request association first (native PR triggers)
+          PR_NUM=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" \
             --jq '.pull_requests | if length > 0 then .[0].number else empty end' 2>/dev/null || true)
 
-          if [ -z "$PR_JSON" ]; then
+          # If empty, try workflow_dispatch inputs (dispatched reviews)
+          if [ -z "$PR_NUM" ]; then
+            echo "No pull_request association, checking workflow_dispatch inputs..."
+            PR_NUM=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" \
+              --jq '.referenced_workflows // empty' 2>/dev/null || true)
+            # The inputs are in the run's display_title or we can parse them
+            PR_NUM=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" \
+              --jq 'if .event == "workflow_dispatch" then (.display_title | capture("PR #?(?<n>[0-9]+)") | .n) // empty else empty end' 2>/dev/null || true)
+          fi
+
+          # Last resort: check run logs display_title for pr_number input
+          if [ -z "$PR_NUM" ]; then
+            echo "Trying to extract from run inputs..."
+            PR_NUM=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" \
+              --jq '.inputs.pr_number // empty' 2>/dev/null || true)
+          fi
+
+          if [ -z "$PR_NUM" ]; then
             echo "No PR associated with workflow run $RUN_ID"
             echo "found=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "PR #$PR_JSON"
+          echo "PR #$PR_NUM"
           echo "found=true" >> "$GITHUB_OUTPUT"
-          echo "pr_number=$PR_JSON" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
 
       - name: Check if both reviews completed
         if: steps.get-pr.outputs.found == 'true'
@@ -51,16 +67,15 @@ jobs:
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
 
-          HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
-          echo "PR #$PR_NUM head SHA: $HEAD_SHA"
+          # Check for completed Code Review runs (any event type)
+          # Look at PR comments for review output instead of workflow runs
+          CODE_REVIEW=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments" \
+            --jq '[.[] | select(.body | contains("Code Review"))] | length')
+          API_REVIEW=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments" \
+            --jq '[.[] | select(.body | contains("API Surface Review") or contains("API Review"))] | length')
 
-          CODE_REVIEW=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=$HEAD_SHA&event=pull_request" \
-            --jq '[.workflow_runs[] | select(.name == "Code Review" and .status == "completed")] | length')
-          API_REVIEW=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=$HEAD_SHA&event=pull_request" \
-            --jq '[.workflow_runs[] | select(.name == "API Surface Review" and .status == "completed")] | length')
-
-          echo "Code Review completed runs: $CODE_REVIEW"
-          echo "API Review completed runs: $API_REVIEW"
+          echo "Code Review comments: $CODE_REVIEW"
+          echo "API Review comments: $API_REVIEW"
 
           if [ "$CODE_REVIEW" -gt 0 ] && [ "$API_REVIEW" -gt 0 ]; then
             echo "Both reviews completed for PR #$PR_NUM"
