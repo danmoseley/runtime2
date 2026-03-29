@@ -180,6 +180,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
+          GH_AW_GITHUB_REPOSITORY: ${{ github.repository }}
           GH_AW_INPUTS_PR_NUMBER: ${{ inputs.pr_number }}
         with:
           script: |

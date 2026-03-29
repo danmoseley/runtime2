@@ -70,13 +70,13 @@ You are an issue selector for an AI bug-fixing pipeline targeting dotnet/runtime
 **Tool priority:** Try MCP tools first (`search_issues`, `list_issues`, `get_file_contents`, `list_branches`). If MCP tools are unavailable or return errors, fall back to `web-fetch` with these GitHub REST API URLs:
 - Search issues: `https://api.github.com/search/issues?q=repo:dotnet/runtime+is:issue+is:open+label:LABEL`
 - Read issue: `https://api.github.com/repos/dotnet/runtime/issues/NUMBER`
-- List branches: `https://api.github.com/repos/danmoseley/runtime/branches?per_page=100`
-- Read file: `https://api.github.com/repos/danmoseley/runtime/contents/.agentic/skills/select-issues.md`
+- List branches: `https://api.github.com/repos/${{ github.repository }}/branches?per_page=100`
+- Read file: `https://api.github.com/repos/${{ github.repository }}/contents/.agentic/skills/select-issues.md`
 
 In your FIRST turn, do ALL of these in parallel:
 1. Read `.agentic/skills/select-issues.md` from this repository for selection criteria
 2. Search `dotnet/runtime` for open issues with each area label in `${{ inputs.areas }}`. **NOTE:** In dotnet/runtime, area labels use the `area-` prefix. If the input doesn't already start with `area-`, prepend it (e.g., `System.IO` → label `area-System.IO`). If the input already has the prefix (e.g., `area-System.IO`), use it as-is.
-3. Check `danmoseley/runtime` fork for existing `fix/issue-*` branches (to skip already-attempted issues)
+3. Check this repository for existing `fix/issue-*` branches (to skip already-attempted issues)
 
 Do NOT wait for the criteria file before searching — read it and search simultaneously.
 Do NOT use `gh` CLI commands — they will fail.
@@ -155,7 +155,7 @@ Use the `create-issue` safe output to report your selections. Format:
 
 To fix these issues, run:
 ```
-gh workflow run agentic-fix-issue.lock.yml --repo danmoseley/runtime -f issue_number=NNNNN -f library=System.Foo -f test_project=src/libraries/System.Foo/tests/...csproj
+gh workflow run agentic-fix-issue.lock.yml --repo ${{ github.repository }} -f issue_number=NNNNN -f library=System.Foo -f test_project=src/libraries/System.Foo/tests/...csproj
 ```
 
 **⚠️ CRITICAL formatting rules for dispatch commands:**
@@ -171,4 +171,4 @@ gh workflow run agentic-fix-issue.lock.yml --repo danmoseley/runtime -f issue_nu
 - **Follow human guidance.** The `difficulty` and `extra_guidance` inputs tell you what the human wants — respect them over default heuristics.
 - **Log every rejection** with a reason — this data helps tune selection criteria.
 - **Checking "no linked PRs":** Search for the `in-pr` label on the issue. Also search PRs in `${{ inputs.upstream_repo }}` referencing the issue number. If either finds active PR work, reject the issue.
-- **Dispatch commands:** Use the concrete fork repo name (`danmoseley/runtime`) in dispatch commands, not `${{ github.repository }}` (which is only valid inside Actions).
+- **Dispatch commands:** Use `${{ github.repository }}` in dispatch commands so they work on any repo.
