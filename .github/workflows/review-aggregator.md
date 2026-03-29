@@ -139,9 +139,9 @@ Use the `add_comment` safe-output with `item_number` set to the PR number. The c
 
 ### Labels Applied
 `ai:medium-confidence` `ai:needs-api-review` `ai:needs-iteration`
+```
 
 <!-- gh-aw-review-aggregator -->
-```
 
 Then apply labels using `add_labels` with `item_number` set to the PR number. You MUST call `add_labels` — this is how the pipeline tracks PR status. Apply ALL applicable labels from Step 4 in a single `add_labels` call. Example: `add_labels(item_number=47, labels=["ai:low-confidence", "ai:needs-iteration", "ai:needs-broader-tests"])`.
 
