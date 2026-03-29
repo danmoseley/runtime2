@@ -39,7 +39,7 @@ namespace System.IO
         public ValueTask DisposeAsync()
         {
             Dispose();
-            return default
+            return default;
         }
 
         protected virtual void Dispose(bool disposing)
