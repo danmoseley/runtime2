@@ -260,7 +260,7 @@ Create a pull request using `create-pull-request` safe output in **this fork** (
 **Self-review:** Correctness ✅/⚠️ | Tests ✅/⚠️ | Breaking ✅/⚠️
 ```
 
-**Labels** (via `add-labels`): Call `add_labels` with **`item_number`** set to the PR number from `create_pull_request` output. Labels: one of `ai:ready-for-human`/`ai:failed`/`ai:rejected-early`, plus `ai:high-confidence`/`ai:medium-confidence`/`ai:low-confidence`. If you don't have the PR number, use `item_number: ${{ inputs.issue_number }}` to label the source issue instead.
+**Labels** (via `add-labels`): **AFTER** calling `create_pull_request`, call `add_labels` with **`item_number`** set to the PR number from `create_pull_request` output. You MUST call `create_pull_request` BEFORE `add_labels` — labels fail if the PR doesn't exist yet. Labels: one of `ai:ready-for-human`/`ai:failed`/`ai:rejected-early`, plus `ai:high-confidence`/`ai:medium-confidence`/`ai:low-confidence`. If you don't have the PR number, use `item_number: ${{ inputs.issue_number }}` to label the source issue instead.
 
 ## Rules
 
