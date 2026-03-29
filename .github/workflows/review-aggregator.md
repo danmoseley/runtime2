@@ -46,22 +46,20 @@ You aggregate reviews from specialist reviewer agents for PR changes in this rep
 
 ## Step 1: Identify the PR
 
-The PR number is `${{ inputs.pr_number }}`. Verify it exists and is open:
+**CRITICAL: The `gh` CLI is NOT authenticated. Use GitHub MCP tools for ALL GitHub reads.**
 
-```bash
-gh pr view ${{ inputs.pr_number }} --json state,headRefName --jq '"\(.state) \(.headRefName)"'
-```
+The PR number is `${{ inputs.pr_number }}`. Use the MCP `pull_request_read` tool (method: `get`, owner: `danmoseley`, repo: `runtime`, pullNumber: `${{ inputs.pr_number }}`) to verify it exists and is open.
 
 If the PR is not open, call `noop` and stop.
 
 ## Step 2: Check if All Reviews Are In
 
-Read the PR comments for PR #`${{ inputs.pr_number }}` and look for review markers from each specialist. The AWF framework auto-injects markers at the end of each comment:
+Use the MCP `pull_request_read` tool (method: `get_comments`, owner: `danmoseley`, repo: `runtime`, pullNumber: `${{ inputs.pr_number }}`) to read all PR comments. Look for review markers from each specialist. The AWF framework auto-injects markers at the end of each comment:
 - Code Review: look for `<!-- gh-aw-agentic-workflow: Code Review` (partial match — the framework appends metadata after the workflow name)
 - API Review: look for `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match)
 
 **Also check CI status:**
-- Look at PR check runs for `ci-build-test` workflow status
+- Use `pull_request_read` (method: `get_check_runs`) to check CI status
 
 **Important:** Each reviewer uses `hide-older-comments: true`, so only the LATEST comment from each reviewer matters. Check that the latest comment from each reviewer was posted AFTER the latest commit on the PR (i.e., reviews are for the current code, not stale).
 
