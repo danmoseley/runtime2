@@ -3,6 +3,13 @@
 Shared live doc. Dan can add ideas/notes here; Copilot keeps status current.
 Companion to `design.md`.
 
+**Testing repo:** `danmoseley/runtime2` (non-fork, avoids AWF push_to_pull_request_branch fork limitation)
+
+### Setup Required for runtime2
+- [x] `gh aw init` — repo initialized
+- [ ] **COPILOT_GITHUB_TOKEN** — must be a fine-grained PAT (`github_pat_...`), NOT an OAuth token. Copy from danmoseley/runtime repo secrets → runtime2 repo secrets. Go to https://github.com/danmoseley/runtime2/settings/secrets/actions
+- [x] Workflows pushed (main + agentic/infra synced)
+
 ## Pipeline Flow
 
 ```
@@ -13,10 +20,10 @@ Selector → picks issues → auto-dispatches fixer(s)
 Fixer → creates PR with code + tests
   ↓ (pull_request: opened)
 Code Review + API Review (parallel, ~3-20 min)
-  ↓ (GAP: needs automation trigger)
+  ↓ (workflow_run → dispatch-aggregator.yml)
 Review Aggregator → synthesizes, labels, posts fix instructions
-  ↓ (GAP: needs automation trigger)
-Iteration Agent → applies fixes to same PR
+  ↓ (workflow_run → dispatch-iteration.yml, checks ai:needs-iteration label)
+Iteration Agent → applies fixes to same PR (push_to_pull_request_branch)
   ↓ (pull_request: synchronize)
 Reviews fire again → Aggregator → loop until satisfied
   ↓
@@ -44,14 +51,13 @@ Aggregator sets ai:ready-for-human → human reviews final PR
 - [ ] **Wire Aggregator → Iteration trigger** — `workflow_run` dispatcher (no PAT needed)
 - [ ] **Exit condition** — aggregator recognizes "no blocking issues" and sets `ai:ready-for-human` instead of looping
 
-### Automation Triggers (solved — no PAT needed)
-`workflow_run` fires for AWF workflows triggered by real `pull_request` events. `workflow_dispatch` works with GITHUB_TOKEN since Sep 2022. So:
-| Trigger | Solution |
-|---------|----------|
-| Reviews → Aggregator | `workflow_run` on code-review + api-review completion → dispatcher checks both done, calls `gh workflow run review-aggregator` |
-| Aggregator → Iteration | `workflow_run` on aggregator completion → dispatcher checks `ai:needs-iteration` label, calls `gh workflow run agentic-fix-iterate` |
+### Automation Triggers (implemented)
+`workflow_run` fires for AWF workflows triggered by real `pull_request` events. `workflow_dispatch` works with GITHUB_TOKEN since Sep 2022.
 
-Subtlety: dispatcher must check both reviews completed for same PR before firing aggregator.
+| Trigger | Workflow | Status |
+|---------|----------|--------|
+| Reviews → Aggregator | `dispatch-aggregator.yml` — fires on code-review/api-review completion, checks both done, dispatches aggregator | ✅ Implemented, includes race condition guard |
+| Aggregator → Iteration | `dispatch-iteration.yml` — fires on aggregator completion, checks `ai:needs-iteration` label, dispatches iteration | ✅ Implemented, PR extraction via display_title + comment fallback |
 
 ## Backlog — Near Term
 
