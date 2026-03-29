@@ -54,15 +54,23 @@ on:
 engine:
   id: copilot
   model: gpt-4.1
+  max-continuations: 3
 ---
 
 # Issue Selector Agent
 
 You are an issue selector for an AI bug-fixing pipeline targeting dotnet/runtime. Your job is to evaluate candidate issues from upstream and select ones that an AI fix agent can likely solve successfully.
 
-## Step 1: Load Selection Criteria
+**IMPORTANT:** You MUST complete ALL steps below in a single execution. Do NOT stop after loading criteria — proceed through search, evaluation, and reporting. Use parallel tool calls aggressively.
 
-Read `.agentic/skills/select-issues.md` from the repository. This contains the full selection criteria, hard filters, soft evaluation rubric, and output format.
+## Step 1: Load Selection Criteria and Start Searching (SAME TURN)
+
+In your FIRST turn, do ALL of these in parallel:
+1. Read `.agentic/skills/select-issues.md` from the repository for selection criteria
+2. Search `${{ inputs.upstream_repo }}` for open issues with each area label in `${{ inputs.areas }}`
+3. Check this fork for existing `fix/issue-*` branches (to skip already-attempted issues)
+
+Do NOT wait for the criteria file before searching — read it and search simultaneously.
 
 ## Step 2: Human Guidance for This Batch
 
@@ -71,9 +79,9 @@ Maximum issues to select: **${{ inputs.max_issues }}**
 Target difficulty: **${{ inputs.difficulty }}**
 Additional guidance: ${{ inputs.extra_guidance || 'None' }}
 
-## Step 3: Query Candidate Issues
+## Step 3: Apply Filters to Search Results
 
-Search `${{ inputs.upstream_repo }}` for open issues matching these criteria:
+Using results from Step 1 searches and the criteria from the selection skill:
 
 1. Search for issues with each area label specified in `${{ inputs.areas }}`
 2. Apply the hard filters from the selection skill:
@@ -84,12 +92,9 @@ Search `${{ inputs.upstream_repo }}` for open issues matching these criteria:
 3. Check soft signals (multiple area labels, age, assignment, etc.) — lower confidence but don't auto-reject
 4. Prefer recent issues (last 6 months) and issues with *positive* maintainer engagement
 
-## Step 4: Check Already-Attempted
+## Step 4: Cross-check Already-Attempted
 
-Before selecting an issue, check this fork for:
-- Existing branches named `fix/issue-NNNNN`
-- Existing PRs referencing the issue number
-- Skip any issue already attempted
+Using the branch list from Step 1, skip any issue that already has a `fix/issue-NNNNN` branch or PR in this fork.
 
 ## Step 5: Evaluate and Select
 
