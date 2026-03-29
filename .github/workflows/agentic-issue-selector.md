@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       areas:
-        description: 'Comma-separated area labels to focus on (e.g., area-System.Text.Json,area-System.Collections)'
+        description: 'Comma-separated area names (e.g., System.Text.Json,System.Collections — area- prefix is added automatically if missing)'
         required: true
         type: string
       max_issues:
@@ -75,7 +75,7 @@ You are an issue selector for an AI bug-fixing pipeline targeting dotnet/runtime
 
 In your FIRST turn, do ALL of these in parallel:
 1. Read `.agentic/skills/select-issues.md` from this repository for selection criteria
-2. Search `dotnet/runtime` for open issues with each area label in `${{ inputs.areas }}`. **NOTE:** In dotnet/runtime, area labels use the `area-` prefix (e.g., `System.IO` → label `area-System.IO`). Always prepend `area-` when searching by label.
+2. Search `dotnet/runtime` for open issues with each area label in `${{ inputs.areas }}`. **NOTE:** In dotnet/runtime, area labels use the `area-` prefix. If the input doesn't already start with `area-`, prepend it (e.g., `System.IO` → label `area-System.IO`). If the input already has the prefix (e.g., `area-System.IO`), use it as-is.
 3. Check `danmoseley/runtime` fork for existing `fix/issue-*` branches (to skip already-attempted issues)
 
 Do NOT wait for the criteria file before searching — read it and search simultaneously.
@@ -97,7 +97,7 @@ If extra_guidance says to avoid specific issue numbers, you MUST NOT select thos
 
 Using results from Step 1 searches and the criteria from the selection skill. For each candidate, use `issue_read` (method: `get`) to read the full issue body and comments:
 
-1. Search for issues with each area label specified in `${{ inputs.areas }}` (remember to use `area-` prefix: e.g., `System.IO` → search for label `area-System.IO`)
+1. Search for issues with each area label specified in `${{ inputs.areas }}` (ensure `area-` prefix: `System.IO` → `area-System.IO`, but `area-System.IO` stays as-is)
 2. Apply the hard filters from the selection skill:
    - Has repro or clear steps
    - Not in excluded complex areas (GC, CodeGen, VM, Interop)
