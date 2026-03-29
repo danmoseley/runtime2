@@ -214,6 +214,7 @@ Use `edit` tool to: (1) add a new `[Fact]` or `[Theory]` test method that would 
 - `${{ inputs.library }}` and area labels are hints — code may be elsewhere. Many `System.*` types live in `System.Private.CoreLib`.
 - Match the style of the file you're editing. Use `var` only when type is obvious. Allman braces. `nameof(...)` for exception args.
 - Write xUnit tests: `[Fact]` or `[Theory]` with `[InlineData]`. Method names: `Method_Condition_Expected`.
+- **If the edit tool fails** (ambiguous match): include MORE surrounding lines in `old_str` to make it unique. For ref assembly files with similar signatures, include the full signature plus context.
 - Never copy issue text verbatim into code.
 - Minimal change — fix the reported bug, nothing more.
 - **Match the issue specification EXACTLY.** If the issue says "atomic group", use atomic — not non-capturing. If it lists specific characters, include ALL of them. If it provides a lowering formula, follow it precisely. Deviating from the approved specification is a correctness bug.

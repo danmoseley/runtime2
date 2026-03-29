@@ -166,6 +166,8 @@ Address EACH item from the fix instructions. Prioritize:
 2. Apply the edit
 3. Move to the next fix
 
+**If the edit tool fails** (e.g., "old_str not found" or ambiguous match): include MORE surrounding context lines in `old_str` to make the match unique. If editing a ref assembly file with similar method signatures, include the full method signature plus 1-2 lines above/below. As a last resort, read the file, determine the line range, and rewrite the entire section.
+
 Do NOT re-read files you already have context for from Phase 0.
 
 ## Phase 3: Build + Test + Commit (3 TURNS)
