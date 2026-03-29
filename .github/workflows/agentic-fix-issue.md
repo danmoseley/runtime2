@@ -94,9 +94,10 @@ You are running in a personal fork of dotnet/runtime. The repo is checked out an
 ## Phase 0-1: Read Issue + Validate (1 TURN)
 
 **Do EVERYTHING below in a SINGLE turn — batch all tool calls in parallel:**
-- `web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}`
-- `web-fetch: https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}/comments`
+- `web-fetch: https://github.com/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}` (HTML — always works for public repos)
 - `bash: git log --oneline --all | grep ${{ inputs.issue_number }} || true`
+
+If web-fetch returns 403/429, retry with the API URL: `https://api.github.com/repos/${{ inputs.upstream_repo }}/issues/${{ inputs.issue_number }}`
 
 Do NOT use `gh issue view` CLI. Do NOT delegate to sub-agents.
 
