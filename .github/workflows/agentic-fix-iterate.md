@@ -74,12 +74,14 @@ You are iterating on PR **#${{ inputs.pr_number }}** in this fork based on revie
 
 > **HARD CONSTRAINTS (read before doing anything):**
 > - **TURN BUDGET:** ~15 model turns per continuation (3 max). Batch tool calls. Budget: **1** Phase 0, **1** Phase 1, **5** Phase 2, **3** Phase 3, **1** Phase 4.
-> - **TIMING:** Call `create_pull_request` within 20 minutes. Safe outputs expire ~25 min.
+> - **TIMING:** Call `push_to_pull_request_branch` within 18 minutes. Safe outputs MCP session expires ~25 min. If you exceed this, YOUR WORK IS LOST.
 > - **NEVER NARRATE.** Every response MUST include at least one tool call.
 > - **NEVER DELEGATE TO SUB-AGENTS.** No Explore agents, background agents, or task delegation.
 > - **DO NOT READ** doc files (`.agentic/skills/`, `CONTRIBUTING.md`, etc.). Guidelines are inlined below.
-> - **MANDATORY OUTPUT:** Call `create_pull_request` or `noop` before finishing.
+> - **MANDATORY OUTPUT:** Call `push_to_pull_request_branch` or `noop` before finishing.
 > - **NEVER** run `./build.sh` or `./build.cmd`. Build individual projects via `./eng/common/dotnet.sh build <csproj>`.
+> - **READ FILES EFFICIENTLY:** Always read 200+ lines at a time. Never read in 60-line chunks.
+> - **BUILD ONCE:** Only build/test ONCE at the end. Do NOT build after each edit.
 
 ## Phase 0: Read PR Context (1 TURN)
 
@@ -154,6 +156,8 @@ Address EACH item from the fix instructions. Prioritize:
 2. **Warnings (⚠️)** — fix these if straightforward
 3. **Suggestions (💡)** — apply if simple, skip if complex
 
+**SPEED IS CRITICAL.** You have ~18 minutes total. Don't explore — act. You already have the fix instructions and the PR diff from Phase 0. Apply the edits directly.
+
 **Coding guidelines (same as fixer):**
 - Use `var` only when type is obvious. Allman braces. `nameof(...)` for exception args.
 - Prefix private fields with `_`, static with `s_`, thread-static with `t_`.
@@ -175,6 +179,8 @@ Do NOT re-read files you already have context for from Phase 0.
 
 ## Phase 3: Build + Test + Commit (3 TURNS)
 
+**Build ONCE only.** Do not rebuild after each edit — apply all edits first, then build once.
+
 ```bash
 # Build the library
 ./eng/common/dotnet.sh build <PATH_TO_SRC_CSPROJ> -c Release
@@ -182,7 +188,7 @@ Do NOT re-read files you already have context for from Phase 0.
 ./eng/common/dotnet.sh build <PATH_TO_TEST_CSPROJ> /t:Test -c Release
 ```
 
-If tests fail, fix and retry (max 2 attempts). After 3 failures, `noop` with summary.
+If tests fail, fix and retry (max 1 retry). After 2 build failures, call `push_to_pull_request_branch` with whatever you have — partial progress is better than losing everything to a session timeout.
 
 **Pre-commit checks:**
 ```bash

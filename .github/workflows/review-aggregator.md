@@ -110,13 +110,23 @@ Based on the synthesized review:
 
 ## Step 5: Post Summary and Apply Labels
 
-**CRITICAL: You MUST do BOTH of these actions — do NOT skip either one:**
-1. **Post the summary comment** using `add_comment` with `item_number` set to the PR number
-2. **Apply labels** using `add_labels` with `item_number` set to the PR number
+**CRITICAL: You MUST do BOTH of these actions — do NOT skip either one.**
 
 **Do NOT call `noop` if you have review data.**
 
-Use the `add_comment` safe-output with `item_number` set to the PR number. The comment body should follow this template:
+**Action 1 — Post the summary comment.** You MUST specify `item_number` so the comment targets the correct PR. Call the safe output exactly like this (substituting the actual PR number and body):
+
+```json
+{"add_comment": {"item_number": ${{ inputs.pr_number }}, "body": "## 📋 Review Summary — PR #${{ inputs.pr_number }}\n\n..."}}
+```
+
+**Action 2 — Apply labels.** Also MUST include `item_number`:
+
+```json
+{"add_labels": {"item_number": ${{ inputs.pr_number }}, "labels": ["ai:low-confidence", "ai:needs-iteration"]}}
+```
+
+The comment body should follow this template:
 
 ```markdown
 ## 📋 Review Summary — PR #NUMBER
@@ -145,7 +155,9 @@ Use the `add_comment` safe-output with `item_number` set to the PR number. The c
 
 <!-- gh-aw-review-aggregator -->
 
-Then apply labels using `add_labels` with `item_number` set to the PR number. You MUST call `add_labels` — this is how the pipeline tracks PR status. Apply ALL applicable labels from Step 4 in a single `add_labels` call. Example: `add_labels(item_number=47, labels=["ai:low-confidence", "ai:needs-iteration", "ai:needs-broader-tests"])`.
+Then apply labels using `add_labels` with `item_number` set to `${{ inputs.pr_number }}`. You MUST call `add_labels` — this is how the pipeline tracks PR status. Apply ALL applicable labels from Step 4 in a single `add_labels` call.
+
+**Reminder:** Both `add_comment` and `add_labels` require `item_number: ${{ inputs.pr_number }}`. Without it, the call WILL FAIL.
 
 **Do NOT noop if you successfully read review comments.** Only noop if the PR doesn't exist or has zero review comments.
 
