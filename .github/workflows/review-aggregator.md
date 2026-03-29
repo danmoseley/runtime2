@@ -13,7 +13,7 @@ network:
 tools:
   github:
     mode: remote
-    toolsets: [default]
+    toolsets: [default, search]
   web-fetch:
 
 safe-outputs:
