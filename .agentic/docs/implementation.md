@@ -40,15 +40,18 @@ Aggregator sets ai:ready-for-human → human reviews final PR
 
 ### Active Work
 - [ ] **Validate iteration agent** — now uses `push_to_pull_request_branch` to push to existing PR (testing run 23703071880 on PR #55)
-- [ ] **Wire Reviews → Aggregator trigger** — currently manual dispatch; need automation
-- [ ] **Wire Aggregator → Iteration trigger** — currently manual dispatch; need automation
+- [ ] **Wire Reviews → Aggregator trigger** — `workflow_run` dispatcher (no PAT needed)
+- [ ] **Wire Aggregator → Iteration trigger** — `workflow_run` dispatcher (no PAT needed)
 - [ ] **Exit condition** — aggregator recognizes "no blocking issues" and sets `ai:ready-for-human` instead of looping
 
-### Automation Gaps (two triggers needed)
-| Gap | Options | Notes |
-|-----|---------|-------|
-| Reviews → Aggregator | (a) PAT-triggered reviews so `workflow_run` fires, (b) scheduled polling workflow, (c) `repository_dispatch` | GITHUB_TOKEN events don't trigger other workflows |
-| Aggregator → Iteration | Aggregator dispatches `agentic-fix-iterate` via GH API | Aggregator knows the fix instructions to pass |
+### Automation Triggers (solved — no PAT needed)
+`workflow_run` fires for AWF workflows triggered by real `pull_request` events. `workflow_dispatch` works with GITHUB_TOKEN since Sep 2022. So:
+| Trigger | Solution |
+|---------|----------|
+| Reviews → Aggregator | `workflow_run` on code-review + api-review completion → dispatcher checks both done, calls `gh workflow run review-aggregator` |
+| Aggregator → Iteration | `workflow_run` on aggregator completion → dispatcher checks `ai:needs-iteration` label, calls `gh workflow run agentic-fix-iterate` |
+
+Subtlety: dispatcher must check both reviews completed for same PR before firing aggregator.
 
 ## Backlog — Near Term
 
