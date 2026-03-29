@@ -65,12 +65,15 @@ You are an issue selector for an AI bug-fixing pipeline targeting dotnet/runtime
 
 ## Step 1: Load Selection Criteria and Start Searching (SAME TURN)
 
-In your FIRST turn, do ALL of these in parallel:
-1. Read `.agentic/skills/select-issues.md` from the repository for selection criteria
-2. Search `${{ inputs.upstream_repo }}` for open issues with each area label in `${{ inputs.areas }}`
-3. Check this fork for existing `fix/issue-*` branches (to skip already-attempted issues)
+**CRITICAL: The `gh` CLI is NOT authenticated. Use GitHub MCP tools (`search_issues`, `list_issues`, `get_file_contents`, `list_branches`) for ALL GitHub reads.**
+
+In your FIRST turn, do ALL of these in parallel using MCP tools:
+1. Use `get_file_contents` to read `.agentic/skills/select-issues.md` from this repository for selection criteria
+2. Use `search_issues` to find open issues in `${{ inputs.upstream_repo }}` with each area label in `${{ inputs.areas }}` — search for `label:<area-label> state:open` for each area
+3. Use `list_branches` to check this fork for existing `fix/issue-*` branches (to skip already-attempted issues)
 
 Do NOT wait for the criteria file before searching — read it and search simultaneously.
+Do NOT use `gh` CLI commands — they will fail. Use MCP tools only.
 
 ## Step 2: Human Guidance for This Batch
 
@@ -81,7 +84,7 @@ Additional guidance: ${{ inputs.extra_guidance || 'None' }}
 
 ## Step 3: Apply Filters to Search Results
 
-Using results from Step 1 searches and the criteria from the selection skill:
+Using results from Step 1 searches and the criteria from the selection skill. For each candidate, use `issue_read` (method: `get`) to read the full issue body and comments:
 
 1. Search for issues with each area label specified in `${{ inputs.areas }}`
 2. Apply the hard filters from the selection skill:
