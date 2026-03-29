@@ -108,7 +108,11 @@ Based on the synthesized review:
 
 ## Step 5: Post Summary and Apply Labels
 
-**CRITICAL: You MUST use the `add_comment` safe-output tool to post the summary. Do NOT call `noop` if you have review data — always post the summary comment.**
+**CRITICAL: You MUST do BOTH of these actions — do NOT skip either one:**
+1. **Post the summary comment** using `add_comment` with `item_number` set to the PR number
+2. **Apply labels** using `add_labels` with `item_number` set to the PR number
+
+**Do NOT call `noop` if you have review data.**
 
 Use the `add_comment` safe-output with `item_number` set to the PR number. The comment body should follow this template:
 
@@ -139,7 +143,7 @@ Use the `add_comment` safe-output with `item_number` set to the PR number. The c
 <!-- gh-aw-review-aggregator -->
 ```
 
-Then apply labels using `add_labels` with `item_number` set to the PR number.
+Then apply labels using `add_labels` with `item_number` set to the PR number. You MUST call `add_labels` — this is how the pipeline tracks PR status. Apply ALL applicable labels from Step 4 in a single `add_labels` call. Example: `add_labels(item_number=47, labels=["ai:low-confidence", "ai:needs-iteration", "ai:needs-broader-tests"])`.
 
 **Do NOT noop if you successfully read review comments.** Only noop if the PR doesn't exist or has zero review comments.
 

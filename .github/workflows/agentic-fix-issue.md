@@ -215,6 +215,7 @@ Use `edit` tool to: (1) add a new `[Fact]` or `[Theory]` test method that would 
 - Write xUnit tests: `[Fact]` or `[Theory]` with `[InlineData]`. Method names: `Method_Condition_Expected`.
 - Never copy issue text verbatim into code.
 - Minimal change — fix the reported bug, nothing more.
+- **Match the issue specification EXACTLY.** If the issue says "atomic group", use atomic — not non-capturing. If it lists specific characters, include ALL of them. If it provides a lowering formula, follow it precisely. Deviating from the approved specification is a correctness bug.
 
 ## Phase 5: Full Test Suite + Commit (2-3 TURNS)
 
