@@ -149,13 +149,11 @@ Use the `create-issue` safe output to report your selections. Format:
 ## Dispatch Commands
 
 To fix these issues, run:
-gh workflow run agentic-fix-issue.md --repo danmoseley/runtime \
-  -f issue_number=NNNNN \
-  -f library=System.Foo \
-  -f test_project=src/libraries/System.Foo/tests/...csproj
+```
+gh workflow run agentic-fix-issue.lock.yml --repo danmoseley/runtime -f issue_number=NNNNN -f library=System.Foo -f test_project=src/libraries/System.Foo/tests/...csproj
 ```
 
-**Important:** Include the dispatch commands with correct `library` and `test_project` values for each selected issue. The human (or a future orchestrator) will use these to trigger the fix workflows.
+**Important:** Include ONE dispatch command PER SELECTED ISSUE, each on a single line (no line breaks with `\`). Use correct `library` and `test_project` values. An auto-dispatch workflow parses these commands to trigger fixers automatically.
 
 ## Guidelines
 
