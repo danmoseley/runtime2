@@ -108,7 +108,9 @@ Based on the synthesized review:
 
 ## Step 5: Post Summary and Apply Labels
 
-Post a summary comment using `add-comment` with `item_number` set to the PR number:
+**CRITICAL: You MUST use the `add_comment` safe-output tool to post the summary. Do NOT call `noop` if you have review data — always post the summary comment.**
+
+Use the `add_comment` safe-output with `item_number` set to the PR number. The comment body should follow this template:
 
 ```markdown
 ## 📋 Review Summary — PR #NUMBER
@@ -138,6 +140,8 @@ Post a summary comment using `add-comment` with `item_number` set to the PR numb
 ```
 
 Then apply labels using `add_labels` with `item_number` set to the PR number.
+
+**Do NOT noop if you successfully read review comments.** Only noop if the PR doesn't exist or has zero review comments.
 
 ## Rules
 
