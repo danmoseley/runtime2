@@ -39,7 +39,7 @@ Aggregator sets ai:ready-for-human → human reviews final PR
 **Goal**: One issue flows through selector → fixer → reviews → aggregator → iteration → re-review → done, fully automated within GitHub, no human in the loop until `ai:ready-for-human`.
 
 ### Active Work
-- [ ] **Validate iteration agent** — uses `create_pull_request` with same branch name to update existing PR (just fixed, testing now on PR #55)
+- [ ] **Validate iteration agent** — now uses `push_to_pull_request_branch` to push to existing PR (testing run 23703071880 on PR #55)
 - [ ] **Wire Reviews → Aggregator trigger** — currently manual dispatch; need automation
 - [ ] **Wire Aggregator → Iteration trigger** — currently manual dispatch; need automation
 - [ ] **Exit condition** — aggregator recognizes "no blocking issues" and sets `ai:ready-for-human` instead of looping
@@ -90,15 +90,16 @@ _Add ideas here. Copilot will see them on the next session._
 
 ## Lessons Learned
 
-1. **AWF sandbox cannot `git push`** — must use `create_pull_request` safe output for all code changes
-2. **AWF agent hangs if no safe output tool called** — must always call `create_pull_request` or `noop`
+1. **AWF sandbox cannot `git push`** — must use safe outputs (`create_pull_request`, `push_to_pull_request_branch`) for all code changes
+2. **AWF agent hangs if no safe output tool called** — must always call a safe output or `noop`
 3. **GitHub API rate limit on GHA runners** — use HTML URLs for public issue fetch, not API
 4. **GITHUB_TOKEN events don't trigger other workflows** — need PAT or alternative for workflow chaining
 5. **dotnet/runtime test paths are non-obvious** — System.IO types tested under System.Runtime/tests/
 6. **Code review takes 3-4x longer than API review** — loads SKILL.md file (extra turn + large context)
-7. **`create_pull_request` with existing branch name updates the PR** — key for iteration (validating now)
+7. **`push_to_pull_request_branch` is the right tool for iteration** — pushes to existing PR branch, preserves comments/reviews. `create_pull_request` always creates a NEW branch+PR.
 8. **1 issue = 1 PR** — iteration pushes to same PR, never creates new ones
 9. **Fixer quality improves with sibling pattern guidance** — "look at how TextWriter does it"
+10. **When hitting AWF limitations, search docs first** — github.github.com/gh-aw/reference/ before workarounds
 
 ## Key Files
 
