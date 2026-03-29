@@ -35,6 +35,22 @@ namespace System.IO
             HResult = HResults.COR_E_DIRECTORYNOTFOUND;
         }
 
+        public DirectoryNotFoundException(string? message, string? directoryPath)
+            : base(message ?? SR.Arg_DirectoryNotFoundException)
+        {
+            HResult = HResults.COR_E_DIRECTORYNOTFOUND;
+            DirectoryPath = directoryPath;
+        }
+
+        public DirectoryNotFoundException(string? message, string? directoryPath, Exception? innerException)
+            : base(message ?? SR.Arg_DirectoryNotFoundException, innerException)
+        {
+            HResult = HResults.COR_E_DIRECTORYNOTFOUND;
+            DirectoryPath = directoryPath;
+        }
+
+        public string? DirectoryPath { get; }
+
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId, UrlFormat = Obsoletions.SharedUrlFormat)]
         [EditorBrowsable(EditorBrowsableState.Never)]
         protected DirectoryNotFoundException(SerializationInfo info, StreamingContext context)

@@ -8,6 +8,15 @@ namespace System.IO.IsolatedStorage
     public class MoveDirectoryTests : IsoStorageTest
     {
         [Fact]
+        public void DirectoryNotFoundException_DirectoryPath_Property()
+        {
+            string testPath = "nonexistent/path";
+            var ex = new DirectoryNotFoundException("Test message", testPath);
+            Assert.Equal("Test message", ex.Message);
+            Assert.Equal(testPath, ex.DirectoryPath);
+        }
+
+        [Fact]
         public void MoveDirectory_ThrowsArgumentNull()
         {
             using (IsolatedStorageFile isf = IsolatedStorageFile.GetUserStoreForAssembly())
