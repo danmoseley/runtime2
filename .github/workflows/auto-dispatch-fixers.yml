@@ -20,9 +20,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
         run: |
           # Find the most recent open issue created by the selector
-          # The selector creates issues with title starting with "[Issue Selection]"
+          # The selector creates issues with title starting with "Issue Selection Report"
           ISSUE=$(gh issue list -R "${{ github.repository }}" \
-            --search "is:open [Issue Selection]" \
+            --search "is:open Issue Selection Report" \
             --json number,title,body,createdAt \
             --jq 'sort_by(.createdAt) | reverse | .[0]')
 

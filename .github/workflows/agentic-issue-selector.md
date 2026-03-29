@@ -86,7 +86,12 @@ Do NOT use `gh` CLI commands — they will fail.
 Areas to focus on: **${{ inputs.areas }}**
 Maximum issues to select: **${{ inputs.max_issues }}**
 Target difficulty: **${{ inputs.difficulty }}**
-Additional guidance: ${{ inputs.extra_guidance || 'None' }}
+
+**⚠️ MANDATORY extra guidance — you MUST follow these instructions:**
+
+${{ inputs.extra_guidance || 'None' }}
+
+If extra_guidance says to avoid specific issue numbers, you MUST NOT select those issues under any circumstances.
 
 ## Step 3: Apply Filters to Search Results
 
@@ -103,7 +108,7 @@ Using results from Step 1 searches and the criteria from the selection skill. Fo
 
 ## Step 4: Cross-check Already-Attempted
 
-Using the branch list from Step 1, skip any issue that already has a `fix/issue-NNNNN` branch or PR in this fork.
+Using the branch list from Step 1, skip any issue that already has a `fix/issue-NNNNN` branch or PR in this fork. Also skip any issue mentioned in existing "Issue Selection Report" issues in this fork — search with `gh issue list --search "Issue Selection Report"` and check their bodies for previously selected issue numbers.
 
 ## Step 5: Evaluate and Select
 
@@ -153,7 +158,11 @@ To fix these issues, run:
 gh workflow run agentic-fix-issue.lock.yml --repo danmoseley/runtime -f issue_number=NNNNN -f library=System.Foo -f test_project=src/libraries/System.Foo/tests/...csproj
 ```
 
-**Important:** Include ONE dispatch command PER SELECTED ISSUE, each on a single line (no line breaks with `\`). Use correct `library` and `test_project` values. An auto-dispatch workflow parses these commands to trigger fixers automatically.
+**⚠️ CRITICAL formatting rules for dispatch commands:**
+- Each command MUST be on a **single line** — no `\` line continuations, no line breaks
+- Use `agentic-fix-issue.lock.yml` as the workflow name (NOT `.md`)
+- Include ONE command PER SELECTED ISSUE
+- An auto-dispatch workflow parses these commands to trigger fixers automatically — malformed commands won't be parsed
 
 ## Guidelines
 
