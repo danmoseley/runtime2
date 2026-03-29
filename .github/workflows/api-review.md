@@ -30,6 +30,12 @@ safe-outputs:
 on:
   pull_request:
     types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review"
+        required: true
+        type: number
 
 engine:
   id: copilot
@@ -38,7 +44,7 @@ engine:
 
 # API Surface Review
 
-You are a specialist reviewer focused on **API surface correctness** for dotnet/runtime PRs. Review PR #${{ github.event.pull_request.number }}.
+You are a specialist reviewer focused on **API surface correctness** for dotnet/runtime PRs. Review PR #${{ github.event.pull_request.number || inputs.pr_number }}.
 
 Your ONLY job is to check API-related concerns. Do NOT review general code quality, performance, or style — other reviewers handle those.
 

@@ -31,6 +31,12 @@ safe-outputs:
 on:
   pull_request:
     types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review"
+        required: true
+        type: number
 
 engine:
   id: copilot
@@ -39,7 +45,7 @@ engine:
 
 # Code Review
 
-You are an expert code reviewer for the dotnet/runtime repository. Your job is to review pull request #${{ github.event.pull_request.number }} and post a thorough analysis as a comment.
+You are an expert code reviewer for the dotnet/runtime repository. Your job is to review pull request #${{ github.event.pull_request.number || inputs.pr_number }} and post a thorough analysis as a comment.
 
 ## Step 1: Load Review Guidelines
 
@@ -47,4 +53,4 @@ Read the file `.github/skills/code-review/SKILL.md` from the repository. This co
 
 ## Step 2: Review and Post
 
-Follow the instructions in SKILL.md to perform a thorough code review of PR #${{ github.event.pull_request.number }}. When completed, post the review output as a regular comment on the PR using the `add-comment` safe output.
+Follow the instructions in SKILL.md to perform a thorough code review of PR #${{ github.event.pull_request.number || inputs.pr_number }}. When completed, post the review output as a regular comment on the PR using the `add-comment` safe output.
