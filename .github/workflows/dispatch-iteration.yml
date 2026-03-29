@@ -24,6 +24,7 @@ jobs:
           echo "Aggregator run: $RUN_ID"
 
           # Method 1: Check the aggregator run's inputs (workflow_dispatch)
+          # Note: AWF .lock.yml runs may return null for inputs via the API
           PR_NUM=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" \
             --jq '.inputs.pr_number // empty' 2>/dev/null || true)
           
@@ -35,12 +36,35 @@ jobs:
           fi
 
           # Method 2: Search open PRs for one with ai:needs-iteration label
-          echo "Checking inputs failed, searching for PRs with ai:needs-iteration..."
+          echo "Method 1 (inputs) returned empty, trying label search..."
           PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&per_page=20" \
             --jq '[.[] | select(.labels | map(.name) | index("ai:needs-iteration"))] | .[0].number // empty')
 
           if [ -n "$PR_NUM" ]; then
             echo "Found PR #$PR_NUM with ai:needs-iteration label"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Method 3: Find the PR from the aggregator's comment marker
+          # The aggregator posts a comment containing "<!-- gh-aw-review-aggregator -->"
+          # Search open PRs with ai:agent-fix label for one with this marker
+          echo "Method 2 (label) failed, searching for PRs with aggregator comment..."
+          CANDIDATE_PRS=$(gh api "repos/${{ github.repository }}/pulls?state=open&per_page=20" \
+            --jq '[.[] | select(.labels | map(.name) | index("ai:agent-fix"))] | .[].number')
+
+          for PR in $CANDIDATE_PRS; do
+            HAS_AGGREGATOR=$(gh api "repos/${{ github.repository }}/issues/$PR/comments?per_page=100" \
+              --jq '[.[] | select(.body | contains("gh-aw-review-aggregator"))] | length')
+            if [ "$HAS_AGGREGATOR" -gt 0 ]; then
+              echo "Found PR #$PR with aggregator comment marker"
+              PR_NUM="$PR"
+              break
+            fi
+          done
+
+          if [ -n "$PR_NUM" ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
             exit 0
@@ -63,9 +87,17 @@ jobs:
           echo "PR #$PR_NUM labels: $LABELS"
 
           if ! echo "$LABELS" | grep -q "ai:needs-iteration"; then
-            echo "No ai:needs-iteration label — skipping iteration dispatch"
-            echo "needs_iteration=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            # Fallback: check if the aggregator synthesis comment indicates changes needed
+            # This handles cases where the aggregator used wrong label names
+            SYNTH_COMMENT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+              --jq '[.[] | select(.body | contains("gh-aw-review-aggregator"))] | last | .body // empty')
+            if echo "$SYNTH_COMMENT" | grep -qi "needs.changes\|needs.iteration\|NEEDS ITERATION"; then
+              echo "⚠️ No ai:needs-iteration label but aggregator synthesis says needs changes — proceeding anyway"
+            else
+              echo "No ai:needs-iteration label and no iteration signal in aggregator comment — skipping"
+              echo "needs_iteration=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
 
           # Count existing iteration comments to enforce max cap
