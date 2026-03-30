@@ -1,0 +1,85 @@
+name: Stale AI PR Watchdog
+# Detects AI-generated PRs that appear stuck in the pipeline.
+# Runs on schedule and can be triggered manually.
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch: {}
+
+jobs:
+  check-stale-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scan for stale AI PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STALE_HOURS: 6
+        run: |
+          echo "🔍 Scanning for stale AI PRs..."
+          CUTOFF=$(date -u -d "${STALE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)
+
+          # Get all open PRs with ai:agent-fix label
+          PRS=$(gh api "repos/${{ github.repository }}/pulls?state=open&per_page=50" \
+            --jq "[.[] | select(.labels | map(.name) | index(\"ai:agent-fix\"))] | .[] | {number: .number, title: .title, updated: .updated_at, labels: [.labels[].name]}")
+
+          if [ -z "$PRS" ] || [ "$PRS" = "[]" ]; then
+            echo "No open ai:agent-fix PRs found"
+            exit 0
+          fi
+
+          echo "$PRS" | jq -c '.' | while read -r PR; do
+            NUM=$(echo "$PR" | jq -r '.number')
+            TITLE=$(echo "$PR" | jq -r '.title')
+            UPDATED=$(echo "$PR" | jq -r '.updated')
+            LABELS=$(echo "$PR" | jq -r '.labels | join(", ")')
+
+            echo ""
+            echo "--- PR #$NUM: $TITLE ---"
+            echo "Labels: $LABELS"
+            echo "Last updated: $UPDATED"
+
+            HAS_READY=$(echo "$LABELS" | grep -c "ai:ready-for-human" || true)
+            HAS_ITERATION=$(echo "$LABELS" | grep -c "ai:needs-iteration" || true)
+            HAS_MAX=$(echo "$LABELS" | grep -c "ai:max-iterations-reached" || true)
+            HAS_FAILED=$(echo "$LABELS" | grep -c "ai:failed" || true)
+
+            # Check if PR is in a terminal state (these are fine)
+            if [ "$HAS_READY" -gt 0 ] || [ "$HAS_FAILED" -gt 0 ]; then
+              echo "  ✅ Terminal state (ready-for-human or failed)"
+              continue
+            fi
+
+            # Check if updated recently
+            if [[ "$UPDATED" > "$CUTOFF" ]]; then
+              echo "  ⏳ Updated recently, still in progress"
+              continue
+            fi
+
+            # Stale PR detected
+            echo "  ⚠️ STALE: Not updated in ${STALE_HOURS}+ hours"
+
+            if [ "$HAS_ITERATION" -gt 0 ]; then
+              echo "  🔄 Has ai:needs-iteration but no progress — iteration may have failed"
+              echo "  Action: Consider re-dispatching orchestrator"
+            elif [ "$HAS_MAX" -gt 0 ]; then
+              echo "  🛑 Hit max iterations but not ready-for-human — needs human attention"
+            else
+              echo "  ❓ No outcome label — pipeline may not have started or stalled mid-review"
+              echo "  Action: Check if reviews were posted; re-dispatch orchestrator if needed"
+            fi
+
+            # Post a warning comment if none exists recently
+            RECENT_WARNING=$(gh api "repos/${{ github.repository }}/issues/$NUM/comments?per_page=5&sort=created&direction=desc" \
+              --jq "[.[] | select(.body | contains(\"Stale PR Watchdog\"))] | length")
+            if [ "$RECENT_WARNING" -eq 0 ]; then
+              echo "  📝 Posting watchdog notice"
+              gh api "repos/${{ github.repository }}/issues/$NUM/comments" \
+                -X POST \
+                -f body="⚠️ **Stale PR Watchdog**: This AI-generated PR hasn't been updated in ${STALE_HOURS}+ hours. Labels: \`$LABELS\`. The pipeline may be stuck. Consider re-dispatching the orchestrator or closing this PR." \
+                --silent
+            fi
+          done
+
+          echo ""
+          echo "✅ Watchdog scan complete"
