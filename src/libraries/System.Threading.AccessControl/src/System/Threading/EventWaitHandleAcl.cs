@@ -97,7 +97,7 @@ namespace System.Threading
                     throw new WaitHandleCannotBeOpenedException(SR.Format(SR.Threading_WaitHandleCannotBeOpenedException_InvalidHandle, name));
 
                 case OpenExistingResult.PathNotFound:
-                    throw new DirectoryNotFoundException(SR.Format(SR.IO_PathNotFound_Path, name));
+                    throw new DirectoryNotFoundException(null, name);
 
                 case OpenExistingResult.Success:
                 default:
