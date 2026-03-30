@@ -153,9 +153,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
-          INSTRUCTIONS=$(cat "$RUNNER_TEMP/fix_instructions.txt")
+          # Truncate to avoid workflow_dispatch "inputs too large" (422) error.
+          # The iterate agent reads full review comments from the PR directly.
+          INSTRUCTIONS=$(cat "$RUNNER_TEMP/fix_instructions.txt" | head -c 8000)
 
-          echo "Dispatching AWF iteration agent for PR #$PR_NUM"
+          echo "Dispatching AWF iteration agent for PR #$PR_NUM (${#INSTRUCTIONS} bytes)"
 
           gh workflow run agentic-fix-iterate.lock.yml \
             -R "${{ github.repository }}" \

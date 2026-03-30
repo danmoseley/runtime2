@@ -428,9 +428,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
-          INSTRUCTIONS=$(cat "$RUNNER_TEMP/fix_instructions.txt")
+          # The iterate agent reads full review comments directly from the PR.
+          # We pass a brief summary here since workflow_dispatch inputs have a
+          # strict size limit (~65KB total payload) and review comments can be huge.
+          INSTRUCTIONS=$(cat "$RUNNER_TEMP/fix_instructions.txt" | head -c 8000)
+          SUMMARY="Read the review comments on PR #${PR_NUM} for full details. Key points from reviews:"
+          INSTRUCTIONS="${SUMMARY}
+          $(echo "$INSTRUCTIONS" | head -c 7500)"
 
-          echo "Dispatching iteration agent for PR #$PR_NUM"
+          echo "Dispatching iteration agent for PR #$PR_NUM (instructions: ${#INSTRUCTIONS} bytes)"
           gh workflow run agentic-fix-iterate.lock.yml \
             -R "${{ github.repository }}" \
             -f "pr_number=$PR_NUM" \
