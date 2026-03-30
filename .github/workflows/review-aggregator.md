@@ -163,7 +163,7 @@ Before calling any safe outputs, verify your label list:
 
 Call `add_comment` with `item_number` = ${{ inputs.pr_number }} and a `body` containing your synthesis.
 
-Format the body as PLAIN MARKDOWN (do NOT wrap it in backtick code blocks). Use this structure:
+Format the body as PLAIN MARKDOWN (do NOT wrap it in backtick code blocks or fenced code blocks; do NOT wrap it in HTML `<details>` tags). Use this structure:
 
 ---
 ## 📝 Review Synthesis — PR #NUMBER
@@ -184,10 +184,10 @@ Format the body as PLAIN MARKDOWN (do NOT wrap it in backtick code blocks). Use 
 - `[any signal labels]`
 ---
 
-IMPORTANT: The body must be plain markdown text. Do NOT wrap the entire comment in triple backticks or code blocks. Headings, bold, lists, and inline code are fine.
-
-<!-- gh-aw-pr-review-synthesis -->
-<!-- gh-aw-review-aggregator -->
+CRITICAL FORMATTING RULES:
+- The body must be plain markdown text. Do NOT wrap ANY part of the comment in triple backticks, double backticks, `<details>` tags, `<summary>` tags, or any other kind of code/collapsible container.
+- Do NOT include HTML comment markers (`<!-- ... -->`) in the body.
+- Headings, bold, lists, and inline code (single backticks for label names) are fine.
 
 **Action 2 — Apply labels:**
 
