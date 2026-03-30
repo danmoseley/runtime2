@@ -43,7 +43,7 @@ jobs:
             # Fallback: check if the aggregator synthesis comment indicates changes needed
             # This handles cases where the aggregator used wrong label names
             SYNTH_COMMENT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-              --jq '[.[] | select(.body | contains("gh-aw-agentic-workflow: Review Aggregator"))] | last | .body // empty')
+              --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("gh-aw-agentic-workflow: Review Aggregator")))] | last | .body // empty')
             if echo "$SYNTH_COMMENT" | grep -qi "needs.changes\|needs.iteration\|NEEDS ITERATION"; then
               echo "⚠️ No ai:needs-iteration label but aggregator synthesis says needs changes — proceeding anyway"
             else
