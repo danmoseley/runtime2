@@ -225,6 +225,7 @@ jobs:
           # Capture dispatch timestamp — only trust comments created after this
           DISPATCH_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           echo "Dispatch timestamp: $DISPATCH_TS"
+          echo "dispatch_ts=$DISPATCH_TS" >> "$GITHUB_OUTPUT"
 
           # Poll for review comments by marker + author + timestamp.
           # Only trust comments from github-actions[bot] created after dispatch.
@@ -307,18 +308,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
-          # The aggregator reads ALL comments and can be confused by old review
-          # comments from prior iterations. Delete old reviews, keeping only the
-          # latest set (posted after reviews were dispatched this cycle).
-          # The orchestrator's "Wait for reviews" step uses DISPATCH_TS to detect
-          # fresh comments; we keep any comment created in the last 30 minutes to
-          # be safe (current reviews take ~5 min to post).
-          CUTOFF=$(date -u -d '30 minutes ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-30M +%Y-%m-%dT%H:%M:%SZ)
+          DISPATCH_TS="${{ steps.wait-reviews.outputs.dispatch_ts }}"
+          # Delete ALL gh-aw comments OLDER than when we dispatched reviews this cycle.
+          # This ensures the aggregator only sees fresh reviews from this run.
+          # The prior aggregator output is especially dangerous — the model will
+          # parrot old findings from a stale synthesis if it can see them.
+          echo "Deleting gh-aw comments created before $DISPATCH_TS"
 
           STALE_IDS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
             --jq "[.[] | select(
               .user.login == \"github-actions[bot]\" and
-              .created_at < \"$CUTOFF\" and
+              .created_at < \"$DISPATCH_TS\" and
               (.body | test(\"gh-aw-agentic-workflow:\"))
             )] | .[].id")
 
