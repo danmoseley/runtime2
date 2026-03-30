@@ -11260,6 +11260,61 @@ GenTree* Compiler::fgMorphSmpOpOptional(GenTreeOp* tree, bool* optAssertionPropD
             break;
 
         case GT_UDIV:
+            // Fold "(a / C1) / C2" into "a / (C1 * C2)" for unsigned integer division,
+            // when both divisors are non-zero constants and their product does not overflow.
+            // This is valid because floor(floor(a / C1) / C2) == floor(a / (C1 * C2))
+            // for all unsigned integers a, C1, C2 where C1, C2 > 0.
+            if (opts.OptimizationEnabled() && op2->IsCnsIntOrI() && op1->OperIs(GT_UDIV) &&
+                op1->AsOp()->gtGetOp2()->IsCnsIntOrI())
+            {
+                size_t outerDivisorValue = static_cast<size_t>(op2->AsIntCon()->IconValue());
+                size_t innerDivisorValue = static_cast<size_t>(op1->AsOp()->gtGetOp2()->AsIntCon()->IconValue());
+
+                if (typ == TYP_INT)
+                {
+                    // Clear the upper bits, which may be set due to sign-extension of constants.
+                    outerDivisorValue &= UINT32_MAX;
+                    innerDivisorValue &= UINT32_MAX;
+                }
+
+                if ((outerDivisorValue != 0) && (innerDivisorValue != 0))
+                {
+                    bool overflows;
+
+                    if (typ == TYP_INT)
+                    {
+                        uint64_t combined = (uint64_t)innerDivisorValue * outerDivisorValue;
+                        overflows         = (combined > UINT32_MAX);
+                        if (!overflows)
+                        {
+                            op2->AsIntCon()->SetIconValue((ssize_t)(uint32_t)combined);
+                        }
+                    }
+                    else
+                    {
+                        assert(typ == TYP_LONG);
+                        overflows = (innerDivisorValue > ((size_t)UINT64_MAX / outerDivisorValue));
+                        if (!overflows)
+                        {
+                            op2->AsIntCon()->SetIconValue((ssize_t)(innerDivisorValue * outerDivisorValue));
+                        }
+                    }
+
+                    if (!overflows)
+                    {
+                        GenTreeOp* innerDiv = op1->AsOp();
+                        tree->gtOp1         = innerDiv->gtOp1;
+                        DEBUG_DESTROY_NODE(innerDiv->gtOp2);
+                        DEBUG_DESTROY_NODE(innerDiv);
+
+                        op1 = tree->gtOp1;
+                        op2 = tree->gtOp2;
+                        gtUpdateNodeSideEffects(tree);
+                    }
+                }
+            }
+            FALLTHROUGH;
+
         case GT_UMOD:
             tree->CheckDivideByConstOptimized(this);
             break;
