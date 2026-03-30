@@ -314,18 +314,57 @@ jobs:
 
           echo "$BODY" | head -c 65000 > /tmp/fix_instructions.txt
 
-      - name: Dispatch iteration agent
+      - name: Detect fixer type
         if: steps.check-iteration.outputs.needs_iteration == 'true'
+        id: fixer-type
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          PR_AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login')
+          echo "PR #$PR_NUM author: $PR_AUTHOR"
+          if [[ "$PR_AUTHOR" == "copilot-swe-agent[bot]" ]]; then
+            echo "fixer=copilot" >> "$GITHUB_OUTPUT"
+          else
+            echo "fixer=awf" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post @copilot iteration comment
+        if: steps.check-iteration.outputs.needs_iteration == 'true' && steps.fixer-type.outputs.fixer == 'copilot'
+        env:
+          GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          INSTRUCTIONS=$(cat /tmp/fix_instructions.txt | head -c 30000)
+
+          COMMENT="@copilot Please address the following review feedback:
+
+          ${INSTRUCTIONS}
+
+          ## Instructions
+          1. Fix each issue listed above.
+          2. Rebuild and verify tests pass.
+          3. Do NOT revert previous changes unless a reviewer specifically asked for a revert.
+          4. Push your changes to this PR branch."
+
+          COMMENT=$(echo "$COMMENT" | sed 's/^          //')
+
+          gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments" \
+            -X POST -f body="$COMMENT"
+          echo "✅ Posted @copilot iteration comment on PR #$PR_NUM"
+
+      - name: Dispatch AWF iteration agent
+        if: steps.check-iteration.outputs.needs_iteration == 'true' && steps.fixer-type.outputs.fixer == 'awf'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
           INSTRUCTIONS=$(cat /tmp/fix_instructions.txt)
 
-          echo "Dispatching iteration agent for PR #$PR_NUM"
+          echo "Dispatching AWF iteration agent for PR #$PR_NUM"
           gh workflow run agentic-fix-iterate.lock.yml \
             -R "${{ github.repository }}" \
             -f "pr_number=$PR_NUM" \
             -f "fix_instructions=$INSTRUCTIONS" \
             -f "upstream_repo=dotnet/runtime"
-          echo "✅ Iteration agent dispatched for PR #$PR_NUM"
+          echo "✅ AWF iteration agent dispatched for PR #$PR_NUM"
