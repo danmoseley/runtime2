@@ -28,8 +28,6 @@ safe-outputs:
     issues: false
 
 on:
-  pull_request:
-    types: [opened, synchronize]
   workflow_dispatch:
     inputs:
       pr_number:
