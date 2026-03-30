@@ -85,27 +85,23 @@ jobs:
             echo "both_done=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check aggregator hasn't already run
+      - name: Check aggregator not already in-flight
         if: steps.check-both.outputs.both_done == 'true'
         id: check-dup
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
-          HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
-
-          # Check for existing aggregator comment OR in-progress aggregator runs
-          EXISTING=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments" \
-            --jq '[.[] | select(.body | contains("Review Aggregator"))] | length')
+          # Only skip if aggregator is currently running/queued (true duplicate).
+          # Don't skip based on existing comments — re-runs after iteration are expected.
           RUNNING=$(gh api "repos/${{ github.repository }}/actions/workflows/review-aggregator.lock.yml/runs?status=in_progress" \
             --jq '.total_count' 2>/dev/null || echo "0")
           QUEUED=$(gh api "repos/${{ github.repository }}/actions/workflows/review-aggregator.lock.yml/runs?status=queued" \
             --jq '.total_count' 2>/dev/null || echo "0")
 
-          echo "Existing comments: $EXISTING, Running: $RUNNING, Queued: $QUEUED"
+          echo "Running: $RUNNING, Queued: $QUEUED"
 
-          if [ "$EXISTING" -gt 0 ] || [ "$RUNNING" -gt 0 ] || [ "$QUEUED" -gt 0 ]; then
-            echo "Aggregator already dispatched/running for PR #$PR_NUM, skipping"
+          if [ "$RUNNING" -gt 0 ] || [ "$QUEUED" -gt 0 ]; then
+            echo "Aggregator already in-flight, skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
