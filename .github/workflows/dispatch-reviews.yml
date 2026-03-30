@@ -181,12 +181,12 @@ jobs:
           HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
           echo "PR #$PR_NUM HEAD: $HEAD_SHA"
 
-          # Record comment count at dispatch time — new reviews will appear after this
-          BASELINE_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" --jq 'length')
-          echo "Baseline comment count: $BASELINE_COUNT"
+          # Capture dispatch timestamp — only trust comments created after this
+          DISPATCH_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Dispatch timestamp: $DISPATCH_TS"
 
-          # Poll for review comments by marker (not run ID).
-          # This is immune to run-ID capture races and phantom hangs.
+          # Poll for review comments by marker + author + timestamp.
+          # Only trust comments from github-actions[bot] created after dispatch.
           echo "Waiting for review comments on PR #$PR_NUM..."
 
           CR_DONE=false
@@ -194,14 +194,15 @@ jobs:
           SR_DONE=false
 
           for i in $(seq 1 50); do
+            # Fetch comments with author and timestamp, filter to trusted+fresh
             COMMENTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-              --jq '[.[] | {body: .body, created: .created_at}]')
+              --jq "[.[] | select(.user.login == \"github-actions[bot]\" and .created_at > \"$DISPATCH_TS\") | {body: .body}]")
 
             if [ "$CR_DONE" = "false" ]; then
               CR_FOUND=$(echo "$COMMENTS" | jq '[.[] | select(.body | contains("gh-aw-agentic-workflow: Code Review"))] | length')
               if [ "$CR_FOUND" -gt 0 ]; then
                 CR_DONE=true
-                echo "✅ Code Review comment found"
+                echo "✅ Code Review comment found (trusted, post-dispatch)"
               fi
             fi
 
@@ -209,7 +210,7 @@ jobs:
               AR_FOUND=$(echo "$COMMENTS" | jq '[.[] | select(.body | contains("gh-aw-agentic-workflow: API Surface Review") or contains("gh-aw-agentic-workflow: API Review"))] | length')
               if [ "$AR_FOUND" -gt 0 ]; then
                 AR_DONE=true
-                echo "✅ API Review comment found"
+                echo "✅ API Review comment found (trusted, post-dispatch)"
               fi
             fi
 
@@ -217,7 +218,7 @@ jobs:
               SR_FOUND=$(echo "$COMMENTS" | jq '[.[] | select(.body | contains("gh-aw-security-review"))] | length')
               if [ "$SR_FOUND" -gt 0 ]; then
                 SR_DONE=true
-                echo "✅ Security Review comment found"
+                echo "✅ Security Review comment found (trusted, post-dispatch)"
               fi
             fi
 
@@ -268,11 +269,10 @@ jobs:
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
           echo "Dispatching Review Aggregator for PR #$PR_NUM"
 
-          # Record current aggregator comment count to detect new one
-          BEFORE_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-            --jq '[.[] | select(.body | contains("gh-aw-review-aggregator"))] | length' 2>/dev/null || echo "0")
-          echo "Aggregator comments before dispatch: $BEFORE_COUNT"
-          echo "before_count=$BEFORE_COUNT" >> "$GITHUB_OUTPUT"
+          # Record dispatch timestamp for aggregator
+          AGG_DISPATCH_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Aggregator dispatch timestamp: $AGG_DISPATCH_TS"
+          echo "agg_dispatch_ts=$AGG_DISPATCH_TS" >> "$GITHUB_OUTPUT"
 
           gh workflow run review-aggregator.lock.yml \
             -R "${{ github.repository }}" \
@@ -285,17 +285,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
-          BEFORE="${{ steps.dispatch-agg.outputs.before_count }}"
-          echo "Waiting for new aggregator comment on PR #$PR_NUM (had $BEFORE before)..."
+          AGG_TS="${{ steps.dispatch-agg.outputs.agg_dispatch_ts }}"
+          echo "Waiting for new aggregator comment on PR #$PR_NUM (after $AGG_TS)..."
 
-          # Poll for new aggregator comment (count must increase from before dispatch)
+          # Poll for aggregator comment from trusted author after dispatch timestamp
           for i in $(seq 1 20); do
             sleep 30
-            NOW_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-              --jq '[.[] | select(.body | contains("gh-aw-review-aggregator"))] | length' 2>/dev/null || echo "0")
-            echo "Poll $i/20: aggregator comments=$NOW_COUNT (was $BEFORE)"
-            if [ "$NOW_COUNT" -gt "$BEFORE" ]; then
-              echo "✅ New aggregator comment detected"
+            FOUND=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+              --jq "[.[] | select(.user.login == \"github-actions[bot]\" and .created_at > \"$AGG_TS\" and (.body | contains(\"gh-aw-review-aggregator\")))] | length" 2>/dev/null || echo "0")
+            echo "Poll $i/20: trusted post-dispatch aggregator comments=$FOUND"
+            if [ "$FOUND" -gt 0 ]; then
+              echo "✅ New aggregator comment detected (trusted, post-dispatch)"
               exit 0
             fi
           done
@@ -352,7 +352,7 @@ jobs:
 
           # Only extract from trusted reviewer comments:
           # 1. Must contain a trusted HTML marker (gh-aw-agentic-workflow, gh-aw-security-review, gh-aw-review-aggregator)
-          # 2. Must be authored by a trusted bot (github-actions[bot] or the repo owner)
+          # 2. Must be authored by github-actions[bot]
           # This double-check prevents prompt injection even if an attacker can forge HTML comment markers
           TRUSTED_AUTHORS='github-actions[bot]'
           BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
