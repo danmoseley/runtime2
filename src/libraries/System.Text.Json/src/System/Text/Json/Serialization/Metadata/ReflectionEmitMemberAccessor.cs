@@ -494,7 +494,7 @@ namespace System.Text.Json.Serialization.Metadata
 
         private static DynamicMethod CreateGetterMethod(string memberName, Type memberType) =>
             new DynamicMethod(
-                memberName + "Getter",
+                $"{memberName}Getter",
                 memberType,
                 new[] { JsonTypeInfo.ObjectType },
                 typeof(ReflectionEmitMemberAccessor).Module,
@@ -502,7 +502,7 @@ namespace System.Text.Json.Serialization.Metadata
 
         private static DynamicMethod CreateSetterMethod(string memberName, Type memberType) =>
             new DynamicMethod(
-                memberName + "Setter",
+                $"{memberName}Setter",
                 typeof(void),
                 new[] { JsonTypeInfo.ObjectType, memberType },
                 typeof(ReflectionEmitMemberAccessor).Module,
