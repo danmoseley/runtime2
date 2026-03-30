@@ -19,8 +19,8 @@ jobs:
           echo "🔍 Scanning for stale AI PRs..."
           CUTOFF=$(date -u -d "${STALE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)
 
-          # Get all open PRs with ai:agent-fix label
-          PRS=$(gh api "repos/${{ github.repository }}/pulls?state=open&per_page=50" \
+          # Get all open PRs with ai:agent-fix label (paginated)
+          PRS=$(gh api --paginate "repos/${{ github.repository }}/pulls?state=open&per_page=100" \
             --jq "[.[] | select(.labels | map(.name) | index(\"ai:agent-fix\"))] | .[] | {number: .number, title: .title, updated: .updated_at, labels: [.labels[].name]}")
 
           if [ -z "$PRS" ] || [ "$PRS" = "[]" ]; then
@@ -69,9 +69,10 @@ jobs:
               echo "  Action: Check if reviews were posted; re-dispatch orchestrator if needed"
             fi
 
-            # Post a warning comment if none exists recently
-            RECENT_WARNING=$(gh api "repos/${{ github.repository }}/issues/$NUM/comments?per_page=5&sort=created&direction=desc" \
-              --jq "[.[] | select(.body | contains(\"Stale PR Watchdog\"))] | length")
+            # Post a warning comment if none exists recently (search ALL comments, paginated)
+            RECENT_WARNING=$(gh api --paginate "repos/${{ github.repository }}/issues/$NUM/comments?per_page=100" \
+              --jq "[.[] | select(.body | contains(\"Stale PR Watchdog\")) | select(.created_at > \"$CUTOFF\")] | length" \
+              | awk '{s+=$1} END {print s+0}')
             if [ "$RECENT_WARNING" -eq 0 ]; then
               echo "  📝 Posting watchdog notice"
               gh api "repos/${{ github.repository }}/issues/$NUM/comments" \

@@ -267,7 +267,7 @@ jobs:
 
           for i in $(seq 1 50); do
             # Fetch comments with author and timestamp, filter to trusted+fresh
-            COMMENTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+            COMMENTS=$(gh api --paginate "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
               --jq "[.[] | select(.user.login == \"github-actions[bot]\" and .created_at > \"$DISPATCH_TS\") | {body: .body}]")
 
             if [ "$CR_DONE" = "false" ]; then
@@ -345,7 +345,7 @@ jobs:
           # parrot old findings from a stale synthesis if it can see them.
           echo "Deleting gh-aw comments created before $DISPATCH_TS"
 
-          STALE_IDS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+          STALE_IDS=$(gh api --paginate "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
             --jq "[.[] | select(
               .user.login == \"github-actions[bot]\" and
               .created_at < \"$DISPATCH_TS\" and
@@ -395,8 +395,10 @@ jobs:
           # Poll for aggregator comment from trusted author after dispatch timestamp
           for i in $(seq 1 20); do
             sleep 30
-            FOUND=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+            FOUND=$(gh api --paginate "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
               --jq "[.[] | select(.user.login == \"github-actions[bot]\" and .created_at > \"$AGG_TS\" and (.body | contains(\"gh-aw-agentic-workflow: Review Aggregator\")))] | length" 2>/dev/null || echo "0")
+            # Sum across paginated pages
+            FOUND=$(echo "$FOUND" | awk '{s+=$1} END {print s+0}')
             echo "Poll $i/20: trusted post-dispatch aggregator comments=$FOUND"
             if [ "$FOUND" -gt 0 ]; then
               echo "✅ New aggregator comment detected (trusted, post-dispatch)"
@@ -462,7 +464,7 @@ jobs:
           # 2. Must be authored by github-actions[bot]
           # This double-check prevents prompt injection even if an attacker can forge HTML comment markers
           TRUSTED_AUTHORS='github-actions[bot]'
-          BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+          BODY=$(gh api --paginate "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
             --jq "[.[] | select(
               (.user.login == \"${TRUSTED_AUTHORS}\") and
               (.body | contains(\"gh-aw-agentic-workflow:\"))

@@ -8,8 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       issue_number:
-        description: 'Upstream dotnet/runtime issue number'
+        description: 'Upstream dotnet/runtime issue number (digits only)'
         required: true
+        type: number
 
 jobs:
   create-and-assign:
@@ -22,6 +23,13 @@ jobs:
           GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
           ISSUE_NUM="${{ inputs.issue_number }}"
+
+          # Validate: must be a positive integer (defense-in-depth beyond type:number)
+          if ! [[ "$ISSUE_NUM" =~ ^[0-9]+$ ]]; then
+            echo "::error::issue_number must be a positive integer, got: $ISSUE_NUM"
+            exit 1
+          fi
+
           UPSTREAM_URL="https://github.com/dotnet/runtime/issues/${ISSUE_NUM}"
 
           # Fetch upstream title for a clear, accurate stub issue title
