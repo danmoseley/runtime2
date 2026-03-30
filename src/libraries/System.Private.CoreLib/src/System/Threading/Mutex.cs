@@ -141,7 +141,7 @@ namespace System.Threading
                 case OpenExistingResult.NameInvalid:
                     throw new WaitHandleCannotBeOpenedException(SR.Format(SR.Threading_WaitHandleCannotBeOpenedException_InvalidHandle, name));
                 case OpenExistingResult.PathNotFound:
-                    throw new DirectoryNotFoundException(SR.Format(SR.IO_PathNotFound_Path, name));
+                    throw new DirectoryNotFoundException(SR.Format(SR.IO_PathNotFound_Path, name), name);
                 default:
                     Debug.Assert(openExistingResult == OpenExistingResult.ObjectIncompatibleWithCurrentUserOnly);
                     throw new WaitHandleCannotBeOpenedException(SR.Format(SR.NamedWaitHandles_ExistingObjectIncompatibleWithCurrentUserOnly, name));

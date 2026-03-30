@@ -89,6 +89,18 @@ namespace System.IO
         protected DirectoryNotFoundException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
+            DirectoryPath = info.GetString(nameof(DirectoryPath));
+        }
+
+        /// <summary>
+        /// Overrides GetObjectData to serialize DirectoryPath, matching FileNotFoundException pattern.
+        /// </summary>
+        [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId, UrlFormat = Obsoletions.SharedUrlFormat)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+            info.AddValue(nameof(DirectoryPath), DirectoryPath, typeof(string));
         }
     }
 }
