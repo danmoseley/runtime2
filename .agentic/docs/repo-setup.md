@@ -55,7 +55,21 @@ ai:ready-for-human
 ai:needs-iteration
 ai:failed
 ai:max-iterations-reached
+ai:iteration-1
+ai:iteration-2
+ai:iteration-3
 ```
+
+## Quick Test Issues (for workflow testing, not fix quality)
+
+These are trivially fixable issues good for fast E2E loop validation:
+
+| Issue | Description | Notes |
+|-------|-------------|-------|
+| [dotnet/runtime#105088](https://github.com/dotnet/runtime/issues/105088) | Possible typos in PackedSpanHelpers | ~1 file, spelling fix |
+| [dotnet/runtime#118401](https://github.com/dotnet/runtime/issues/118401) | Stale comments in Thread::CLRSetThreadStackGuarantee | ~1 file, comment update |
+
+For harder issues to exercise reviewers, see: #66544 (FAT32 tests), #96143 (iOS socket), #849 (PipeReader AdvanceTo).
 
 ## Copilot Agent Bot ID
 

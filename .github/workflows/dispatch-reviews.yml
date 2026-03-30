@@ -267,37 +267,37 @@ jobs:
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
           echo "Dispatching Review Aggregator for PR #$PR_NUM"
+
+          # Record current aggregator comment count to detect new one
+          BEFORE_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+            --jq '[.[] | select(.body | contains("gh-aw-review-aggregator"))] | length' 2>/dev/null || echo "0")
+          echo "Aggregator comments before dispatch: $BEFORE_COUNT"
+          echo "before_count=$BEFORE_COUNT" >> "$GITHUB_OUTPUT"
+
           gh workflow run review-aggregator.lock.yml \
             -R "${{ github.repository }}" \
             -f "pr_number=$PR_NUM"
           echo "✅ Aggregator dispatched"
-
-          sleep 15
-          AGG_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/review-aggregator.lock.yml/runs?per_page=5" \
-            --jq '[.workflow_runs[] | select(.status != "completed") | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
-          echo "Aggregator run ID: $AGG_RUN"
-          echo "run_id=$AGG_RUN" >> "$GITHUB_OUTPUT"
 
       - name: Wait for aggregator to complete
         if: steps.find-pr.outputs.found == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          AGG_RUN="${{ steps.dispatch-agg.outputs.run_id }}"
-          echo "Waiting for Aggregator ($AGG_RUN)..."
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          BEFORE="${{ steps.dispatch-agg.outputs.before_count }}"
+          echo "Waiting for new aggregator comment on PR #$PR_NUM (had $BEFORE before)..."
 
+          # Poll for new aggregator comment (count must increase from before dispatch)
           for i in $(seq 1 20); do
-            if [ -n "$AGG_RUN" ]; then
-              STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$AGG_RUN" --jq '.status' 2>/dev/null || echo "unknown")
-              if [ "$STATUS" = "completed" ]; then
-                CONCLUSION=$(gh api "repos/${{ github.repository }}/actions/runs/$AGG_RUN" --jq '.conclusion' 2>/dev/null)
-                echo "✅ Aggregator completed: $CONCLUSION"
-                exit 0
-              fi
-            fi
-
-            echo "Poll $i/20: status=$STATUS (sleeping 30s)"
             sleep 30
+            NOW_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+              --jq '[.[] | select(.body | contains("gh-aw-review-aggregator"))] | length' 2>/dev/null || echo "0")
+            echo "Poll $i/20: aggregator comments=$NOW_COUNT (was $BEFORE)"
+            if [ "$NOW_COUNT" -gt "$BEFORE" ]; then
+              echo "✅ New aggregator comment detected"
+              exit 0
+            fi
           done
 
           echo "::warning::Timed out waiting for aggregator after 10 min"
@@ -350,10 +350,16 @@ jobs:
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
 
-          # Only extract from trusted reviewer comments (identified by HTML markers)
-          # This prevents prompt injection from arbitrary PR comments
+          # Only extract from trusted reviewer comments:
+          # 1. Must contain a trusted HTML marker (gh-aw-agentic-workflow, gh-aw-security-review, gh-aw-review-aggregator)
+          # 2. Must be authored by a trusted bot (github-actions[bot] or the repo owner)
+          # This double-check prevents prompt injection even if an attacker can forge HTML comment markers
+          TRUSTED_AUTHORS='github-actions[bot]'
           BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-            --jq '[.[] | select(.body | (contains("gh-aw-agentic-workflow:") or contains("gh-aw-security-review") or contains("gh-aw-review-aggregator")))] | map(.body) | join("\n\n---\n\n") // empty')
+            --jq "[.[] | select(
+              (.user.login == \"${TRUSTED_AUTHORS}\") and
+              (.body | (contains(\"gh-aw-agentic-workflow:\") or contains(\"gh-aw-security-review\") or contains(\"gh-aw-review-aggregator\")))
+            )] | map(.body) | join(\"\n\n---\n\n\") // empty")
 
           if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
             BODY="Address the review feedback on this PR. Read the review comments carefully and fix all issues identified."
