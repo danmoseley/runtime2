@@ -10,6 +10,12 @@ name: Dispatch Reviews After Fixer
 # MAX_ITERATIONS guard in "Check if iteration needed" prevents infinite loops.
 
 on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to run the full review pipeline on"
+        required: true
+        type: string
   workflow_run:
     workflows: ["Fix Issue Agent", "Fix Iteration Agent", "Copilot coding agent"]
     types: [completed]
@@ -31,7 +37,8 @@ jobs:
     if: >-
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
       github.event_name == 'pull_request' ||
-      github.event_name == 'push'
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -40,7 +47,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger with explicit PR number
+            PR_NUM="${{ inputs.pr_number }}"
+            echo "Manual dispatch for PR #$PR_NUM"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
             # Copilot PR ready for review
             AUTHOR="${{ github.event.pull_request.user.login }}"
             if [[ "$AUTHOR" != "copilot-swe-agent[bot]" ]]; then
