@@ -112,7 +112,7 @@ jobs:
       - name: Post @copilot iteration comment
         if: steps.check-labels.outputs.needs_iteration == 'true' && steps.fixer-type.outputs.fixer == 'copilot'
         env:
-          GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
           INSTRUCTIONS=$(cat /tmp/fix_instructions.txt | head -c 30000)

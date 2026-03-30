@@ -19,7 +19,7 @@ jobs:
       - name: Create runtime2 issue
         id: create-issue
         env:
-          GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
           ISSUE_NUM="${{ inputs.issue_number }}"
           UPSTREAM_URL="https://github.com/dotnet/runtime/issues/${ISSUE_NUM}"
@@ -49,8 +49,7 @@ jobs:
 
       - name: Assign Copilot to issue
         env:
-          GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
-        run: |
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}        run: |
           ISSUE_NODE_ID="${{ steps.create-issue.outputs.node_id }}"
           # Copilot SWE agent bot ID (cached from GraphQL suggestedActors query)
           COPILOT_NODE_ID="BOT_kgDOC9w8XQ"
