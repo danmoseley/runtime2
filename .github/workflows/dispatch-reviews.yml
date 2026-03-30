@@ -11,7 +11,7 @@ name: Dispatch Reviews After Fixer
 
 on:
   workflow_run:
-    workflows: ["Fix Issue Agent", "Fix Iteration Agent"]
+    workflows: ["Fix Issue Agent", "Fix Iteration Agent", "Copilot coding agent"]
     types: [completed]
   pull_request:
     types: [ready_for_review]
@@ -79,18 +79,49 @@ jobs:
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
 
           else
-            # workflow_run trigger (AWF fixer/iteration agent)
+            # workflow_run trigger (AWF fixer/iteration agent OR Copilot coding agent)
             RUN_ID="${{ github.event.workflow_run.id }}"
-            echo "Fixer run: $RUN_ID"
+            WF_NAME="${{ github.event.workflow_run.name }}"
+            echo "Fixer run: $RUN_ID (workflow: $WF_NAME)"
 
-            # Find the most recently opened PR with ai:agent-fix label
-            PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&sort=created&direction=desc&per_page=5" \
-              --jq '[.[] | select(.labels | map(.name) | index("ai:agent-fix"))] | .[0].number // empty')
-
-            if [ -z "$PR_NUM" ]; then
-              echo "No ai:agent-fix PR found"
-              echo "found=false" >> "$GITHUB_OUTPUT"
-              exit 0
+            if [[ "$WF_NAME" == "Copilot coding agent" ]]; then
+              # Copilot coding agent — find PR by branch name from run
+              BRANCH="${{ github.event.workflow_run.head_branch }}"
+              echo "Copilot run on branch: $BRANCH"
+              PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:$BRANCH&per_page=1" \
+                --jq '.[0].number // empty')
+              if [ -z "$PR_NUM" ]; then
+                echo "No open PR for Copilot branch $BRANCH"
+                echo "found=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              # Verify it's a Copilot PR with files
+              AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login')
+              FILES=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.changed_files')
+              if [[ "$AUTHOR" != "copilot-swe-agent[bot]" ]]; then
+                echo "PR #$PR_NUM not by Copilot (author: $AUTHOR), skipping"
+                echo "found=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [ "$FILES" -eq 0 ] 2>/dev/null; then
+                echo "Copilot PR #$PR_NUM has no files yet, skipping"
+                echo "found=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              echo "Copilot PR #$PR_NUM ($FILES files) ready for review"
+              # Add ai:copilot-fix label
+              gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+                -X POST --input - <<< '{"labels":["ai:copilot-fix"]}' > /dev/null 2>&1 || true
+            else
+              # AWF fixer/iteration agent — find PR by label
+              PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&sort=created&direction=desc&per_page=5" \
+                --jq '[.[] | select(.labels | map(.name) | index("ai:agent-fix"))] | .[0].number // empty')
+              if [ -z "$PR_NUM" ]; then
+                echo "No ai:agent-fix PR found"
+                echo "found=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              echo "AWF PR #$PR_NUM"
             fi
 
             echo "Found PR #$PR_NUM"
