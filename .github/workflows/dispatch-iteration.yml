@@ -90,7 +90,7 @@ jobs:
           fi
 
           # Truncate to 65000 chars (workflow_dispatch input limit)
-          echo "$BODY" | head -c 65000 > /tmp/fix_instructions.txt
+          echo "$BODY" | head -c 65000 > "$RUNNER_TEMP/fix_instructions.txt"
 
       - name: Detect fixer type
         if: steps.check-labels.outputs.needs_iteration == 'true'
@@ -115,7 +115,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
-          INSTRUCTIONS=$(cat /tmp/fix_instructions.txt | head -c 30000)
+          INSTRUCTIONS=$(cat "$RUNNER_TEMP/fix_instructions.txt" | head -c 30000)
 
           COMMENT="@copilot Please address the following review feedback:
 
@@ -140,7 +140,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
-          INSTRUCTIONS=$(cat /tmp/fix_instructions.txt)
+          INSTRUCTIONS=$(cat "$RUNNER_TEMP/fix_instructions.txt")
 
           echo "Dispatching AWF iteration agent for PR #$PR_NUM"
 

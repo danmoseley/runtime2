@@ -47,7 +47,9 @@ You are an expert code reviewer for the dotnet/runtime repository. Your job is t
 
 ## Important: Branch Divergence in AI-Generated PRs
 
-If the PR is from a `copilot/*` branch or authored by `Copilot`, the branch may have been created from an older `main` commit. This means the diff may include changes to `.github/workflows/` files that are NOT intentional modifications by the fixer — they are simply the branch being behind `main`. **Focus your review on the files relevant to the stated fix, not on workflow/infrastructure file differences caused by branch divergence.** If you see workflow changes, note them briefly but do NOT flag them as security regressions or blocking issues unless they are clearly intentional modifications by the PR author.
+If the PR is from a `copilot/*` branch or authored by `Copilot`, the branch may have been created from an older `main` commit. This means the diff may include changes to `.github/workflows/` or `.github/` infrastructure files that are NOT intentional modifications by the fixer — they are simply the branch being behind `main`. **Focus your review on the files relevant to the stated fix.**
+
+However, if the PR modifies `.github/workflows/` files in ways that appear intentional (e.g., adding new workflow steps, changing permissions, modifying secrets usage, adding triggers), you MUST flag these as **BLOCKING** issues regardless of the PR author. Workflow changes can be exploited for privilege escalation, secret exfiltration, or supply chain attacks. Only dismiss workflow differences if they are clearly just the branch being behind `main` (i.e., the upstream `main` already contains the same content).
 
 ## Step 1: Load Review Guidelines
 

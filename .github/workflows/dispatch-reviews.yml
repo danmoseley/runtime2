@@ -57,7 +57,12 @@ jobs:
           elif [ "${{ github.event_name }}" == "pull_request" ]; then
             # Copilot PR ready for review
             AUTHOR="${{ github.event.pull_request.user.login }}"
-            if [[ "$AUTHOR" != "copilot-swe-agent[bot]" ]]; then
+            if [ -z "$AUTHOR" ]; then
+              echo "::error::Could not determine PR author"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [[ "$AUTHOR" != "copilot-swe-agent[bot]" && "$AUTHOR" != "Copilot" ]]; then
               echo "Not a Copilot PR (author: $AUTHOR), skipping"
               echo "found=false" >> "$GITHUB_OUTPUT"
               exit 0
@@ -87,8 +92,13 @@ jobs:
               echo "found=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login')
-            if [[ "$AUTHOR" != "copilot-swe-agent[bot]" ]]; then
+            AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login // empty')
+            if [ -z "$AUTHOR" ]; then
+              echo "::error::Could not determine PR author for PR #$PR_NUM"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [[ "$AUTHOR" != "copilot-swe-agent[bot]" && "$AUTHOR" != "Copilot" ]]; then
               echo "PR #$PR_NUM not by Copilot (author: $AUTHOR), skipping"
               echo "found=false" >> "$GITHUB_OUTPUT"
               exit 0
@@ -115,9 +125,14 @@ jobs:
                 exit 0
               fi
               # Verify it's a Copilot PR with files
-              AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login')
+              AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login // empty')
               FILES=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.changed_files')
-              if [[ "$AUTHOR" != "copilot-swe-agent[bot]" ]]; then
+              if [ -z "$AUTHOR" ]; then
+                echo "::error::Could not determine PR author for PR #$PR_NUM"
+                echo "found=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [[ "$AUTHOR" != "copilot-swe-agent[bot]" && "$AUTHOR" != "Copilot" ]]; then
                 echo "PR #$PR_NUM not by Copilot (author: $AUTHOR), skipping"
                 echo "found=false" >> "$GITHUB_OUTPUT"
                 exit 0
@@ -338,10 +353,10 @@ jobs:
             exit 0
           fi
 
-          # Count iterations by ai:iteration-N labels (reliable, not regex-fragile)
-          ITER_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
-            --jq '[.[] | select(.name | test("^ai:iteration-"))] | length')
-          echo "Iteration count: $ITER_COUNT (max: $MAX_ITERATIONS)"
+          # Count iterations by timeline labeled events (tamper-resistant — survives label removal)
+          ITER_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/timeline?per_page=100" \
+            --jq '[.[] | select(.event == "labeled" and (.label.name | test("^ai:iteration-")))] | length')
+          echo "Iteration count (from timeline): $ITER_COUNT (max: $MAX_ITERATIONS)"
 
           if [ "$ITER_COUNT" -ge "$MAX_ITERATIONS" ]; then
             echo "Max iterations reached — stopping loop"
@@ -379,7 +394,7 @@ jobs:
             BODY="Address the review feedback on this PR. Read the review comments carefully and fix all issues identified."
           fi
 
-          echo "$BODY" | head -c 65000 > /tmp/fix_instructions.txt
+          echo "$BODY" | head -c 65000 > "$RUNNER_TEMP/fix_instructions.txt"
 
       - name: Detect fixer type
         if: steps.check-iteration.outputs.needs_iteration == 'true'
@@ -404,7 +419,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}        run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
-          INSTRUCTIONS=$(cat /tmp/fix_instructions.txt | head -c 30000)
+          INSTRUCTIONS=$(cat "$RUNNER_TEMP/fix_instructions.txt" | head -c 30000)
 
           COMMENT="@copilot Please address the following review feedback:
 
@@ -428,7 +443,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
-          INSTRUCTIONS=$(cat /tmp/fix_instructions.txt)
+          INSTRUCTIONS=$(cat "$RUNNER_TEMP/fix_instructions.txt")
 
           echo "Dispatching AWF iteration agent for PR #$PR_NUM"
           gh workflow run agentic-fix-iterate.lock.yml \
