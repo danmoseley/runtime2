@@ -1,4 +1,5 @@
 name: Dispatch Reviews After Fixer
+# Orchestrates the full review pipeline for AI-generated PRs.
 
 # Full orchestrator: dispatch reviews, poll for completion, dispatch aggregator.
 #
