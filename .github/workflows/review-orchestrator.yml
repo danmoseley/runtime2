@@ -148,9 +148,18 @@ jobs:
               gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
                 -X POST --input - <<< '{"labels":["ai:copilot-fix"]}' > /dev/null 2>&1 || true
             else
-              # AWF fixer/iteration agent — find PR by label
-              PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&sort=created&direction=desc&per_page=5" \
-                --jq '[.[] | select(.labels | map(.name) | index("ai:agent-fix"))] | .[0].number // empty')
+              # AWF fixer/iteration agent — find PR by triggering run's branch
+              AWF_BRANCH="${{ github.event.workflow_run.head_branch }}"
+              echo "AWF run on branch: $AWF_BRANCH"
+              # Try to find PR by branch first (more reliable than label-based lookup)
+              PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${AWF_BRANCH}&per_page=1" \
+                --jq '.[0].number // empty')
+              if [ -z "$PR_NUM" ]; then
+                # Fallback: find by ai:agent-fix label (most recent)
+                echo "No PR for branch $AWF_BRANCH, falling back to label lookup"
+                PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&sort=created&direction=desc&per_page=5" \
+                  --jq '[.[] | select(.labels | map(.name) | index("ai:agent-fix"))] | .[0].number // empty')
+              fi
               if [ -z "$PR_NUM" ]; then
                 echo "No ai:agent-fix PR found"
                 echo "found=false" >> "$GITHUB_OUTPUT"
@@ -160,8 +169,9 @@ jobs:
             fi
 
             echo "Found PR #$PR_NUM"
-          echo "found=true" >> "$GITHUB_OUTPUT"
-          echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Dispatch Code Review
         if: steps.find-pr.outputs.found == 'true'
