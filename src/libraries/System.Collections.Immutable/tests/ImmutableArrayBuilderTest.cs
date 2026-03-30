@@ -258,6 +258,26 @@ namespace System.Collections.Immutable.Tests
                 (b, v, i, c, eq) => b.IndexOf(v, i, c, eq));
         }
 
+        [Theory]
+        [InlineData(new int[] { 1, 2, 3, 4 }, 4, 0)]   // startIndex == Count, count == 0
+        [InlineData(new int[] { 1, 2, 3, 4 }, 2, 0)]   // mid-range startIndex, count == 0
+        [InlineData(new int[] { 1, 2, 3, 4 }, 0, 0)]   // startIndex == 0, count == 0
+        [InlineData(new int[0], 0, 0)]                 // empty array
+        public void IndexOf_CountZero_ReturnsMinusOne(int[] items, int startIndex, int count)
+        {
+            var builder = ImmutableArray.Create(items).ToBuilder();
+            Assert.Equal(-1, builder.IndexOf(default, startIndex, count));
+        }
+
+        [Theory]
+        [InlineData(new int[] { 1, 2, 3, 4 }, -1, 0)]  // startIndex < 0
+        [InlineData(new int[] { 1, 2, 3, 4 }, 5, 0)]   // startIndex > Count
+        public void IndexOf_CountZero_InvalidStartIndex_Throws(int[] items, int startIndex, int count)
+        {
+            var builder = ImmutableArray.Create(items).ToBuilder();
+            Assert.Throws<ArgumentOutOfRangeException>(() => builder.IndexOf(default, startIndex, count));
+        }
+
         [Fact]
         public void IndexOf_WithoutCountParam()
         {
