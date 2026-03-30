@@ -4,10 +4,13 @@ name: Dispatch Reviews After Fixer
 # workflow_run also won't fire for workflows dispatched by GITHUB_TOKEN.
 # So this workflow acts as a full orchestrator: dispatch reviews, poll for
 # completion, then dispatch the aggregator — all in one job.
+#
+# Triggers on both fixer (first round) and iteration agent (re-review rounds).
+# MAX_ITERATIONS guard in "Check if iteration needed" prevents infinite loops.
 
 on:
   workflow_run:
-    workflows: ["Fix Issue Agent"]
+    workflows: ["Fix Issue Agent", "Fix Iteration Agent"]
     types: [completed]
 
 jobs:
