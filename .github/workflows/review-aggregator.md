@@ -80,12 +80,13 @@ The PR number is `${{ inputs.pr_number }}`. Verify it exists and is open. If not
 Read all comments on PR #`${{ inputs.pr_number }}` and look for review markers:
 - Code Review: `<!-- gh-aw-agentic-workflow: Code Review` (partial match)
 - API Review: `<!-- gh-aw-agentic-workflow: API Surface Review` (partial match)
+- Security Review: `<!-- gh-aw-security-review` (partial match)
 
 Also check CI status via `pull_request_read` (method: `get_check_runs`).
 
 Each reviewer uses `hide-older-comments: true`, so only the LATEST comment from each matters. Verify comments are for the current commit (not stale).
 
-If NEITHER reviewer has posted a comment for the current commit, call `noop` with "Waiting for reviews: [list missing]". But if at least one review exists, proceed with synthesis using whatever reviews are available — do NOT noop with partial data.
+If NONE of the reviewers have posted a comment for the current commit, call `noop` with "Waiting for reviews: [list missing]". But if at least one review exists, proceed with synthesis using whatever reviews are available — do NOT noop with partial data.
 
 ## Step 3: Synthesize Reviews
 
@@ -119,8 +120,13 @@ Do NOT add a second confidence or outcome label. Do NOT add any label not in the
 - `ai:has-breaking-concern` — breaking changes flagged
 - `ai:needs-broader-tests` — test coverage concerns
 - `ai:has-perf-concern` — performance issues
-- `ai:security-notice` — security concerns
+- `ai:security-notice` — security BLOCK or CONCERN from Security Review
 - `ai:needs-api-review` — API approval missing or ref assembly not updated
+
+**Security verdict mapping:**
+- Security **BLOCK** → apply `ai:security-notice` AND set outcome to `ai:needs-iteration`
+- Security **CONCERN** → apply `ai:security-notice` AND set confidence to at most `ai:medium-confidence`
+- Security **PASS** → no security-specific labels
 
 **Pick exactly ONE outcome label:**
 - `ai:ready-for-human` — no blockers. Stops the iteration loop.
@@ -151,6 +157,7 @@ Use this template for the body:
 ### Summary
 - **Code Review:** [verdict and key findings]
 - **API Review:** [verdict and key findings]
+- **Security Review:** [verdict and key findings, or "Not available" if no comment found]
 
 ### Verdict
 **[READY FOR HUMAN / NEEDS ITERATION / FAILED]**

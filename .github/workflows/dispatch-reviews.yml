@@ -175,20 +175,45 @@ jobs:
           echo "API Review run ID: $AR_RUN"
           echo "run_id=$AR_RUN" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for both reviews to complete
+      - name: Dispatch Security Review
+        if: steps.find-pr.outputs.found == 'true'
+        id: dispatch-sr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          echo "Dispatching Security Review for PR #$PR_NUM"
+          gh workflow run security-review.lock.yml \
+            -R "${{ github.repository }}" \
+            -f "pr_number=$PR_NUM"
+          echo "✅ Security Review dispatched"
+
+          sleep 15
+          SR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/security-review.lock.yml/runs?per_page=5&status=in_progress" \
+            --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
+          if [ -z "$SR_RUN" ]; then
+            SR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/security-review.lock.yml/runs?per_page=5&status=queued" \
+              --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
+          fi
+          echo "Security Review run ID: $SR_RUN"
+          echo "run_id=$SR_RUN" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for all reviews to complete
         if: steps.find-pr.outputs.found == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           CR_RUN="${{ steps.dispatch-cr.outputs.run_id }}"
           AR_RUN="${{ steps.dispatch-ar.outputs.run_id }}"
+          SR_RUN="${{ steps.dispatch-sr.outputs.run_id }}"
 
-          echo "Waiting for Code Review ($CR_RUN) and API Review ($AR_RUN)..."
+          echo "Waiting for Code Review ($CR_RUN), API Review ($AR_RUN), Security Review ($SR_RUN)..."
 
           CR_DONE=false
           AR_DONE=false
+          SR_DONE=false
 
-          for i in $(seq 1 40); do
+          for i in $(seq 1 50); do
             if [ "$CR_DONE" = "false" ] && [ -n "$CR_RUN" ]; then
               CR_STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$CR_RUN" --jq '.status' 2>/dev/null || echo "unknown")
               if [ "$CR_STATUS" = "completed" ]; then
@@ -205,16 +230,27 @@ jobs:
               fi
             fi
 
-            if [ "$CR_DONE" = "true" ] && [ "$AR_DONE" = "true" ]; then
-              echo "Both reviews completed!"
+            if [ "$SR_DONE" = "false" ] && [ -n "$SR_RUN" ]; then
+              SR_STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$SR_RUN" --jq '.status' 2>/dev/null || echo "unknown")
+              if [ "$SR_STATUS" = "completed" ]; then
+                SR_DONE=true
+                echo "✅ Security Review completed"
+              fi
+            fi
+
+            # If no security review run was captured, don't block on it
+            if [ -z "$SR_RUN" ]; then SR_DONE=true; fi
+
+            if [ "$CR_DONE" = "true" ] && [ "$AR_DONE" = "true" ] && [ "$SR_DONE" = "true" ]; then
+              echo "All reviews completed!"
               exit 0
             fi
 
-            echo "Poll $i/40: CR=$CR_DONE AR=$AR_DONE (sleeping 60s)"
+            echo "Poll $i/50: CR=$CR_DONE AR=$AR_DONE SR=$SR_DONE (sleeping 60s)"
             sleep 60
           done
 
-          echo "::warning::Timed out waiting for reviews after 40 min"
+          echo "::warning::Timed out waiting for reviews after 50 min"
           exit 1
 
       # ── Phase 2: Dispatch Aggregator ───────────────────────────
