@@ -420,6 +420,9 @@ jobs:
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
 
+          # Brief pause to ensure labels from aggregator have propagated (R8-03)
+          sleep 10
+
           LABELS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
             --jq '[.[].name] | join(",")')
           echo "PR #$PR_NUM labels: $LABELS"
