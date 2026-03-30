@@ -24,13 +24,20 @@ jobs:
           ISSUE_NUM="${{ inputs.issue_number }}"
           UPSTREAM_URL="https://github.com/dotnet/runtime/issues/${ISSUE_NUM}"
 
+          # Fetch upstream title for a clear, accurate stub issue title
+          UPSTREAM_TITLE=$(gh api "repos/dotnet/runtime/issues/${ISSUE_NUM}" --jq '.title' 2>/dev/null || echo "")
+          if [ -z "$UPSTREAM_TITLE" ]; then
+            TITLE="Fix dotnet/runtime#${ISSUE_NUM}"
+          else
+            TITLE="Fix dotnet/runtime#${ISSUE_NUM} — ${UPSTREAM_TITLE}"
+          fi
+
           # Keep body minimal — Copilot follows the link and reads the real issue.
-          # Adding our own summary risks being wrong/stale.
           BODY="Please fix the issue described at ${UPSTREAM_URL}"
 
           RESULT=$(gh api "repos/${{ github.repository }}/issues" \
             -X POST \
-            -f title="[Copilot Fix] dotnet/runtime#${ISSUE_NUM}" \
+            -f title="${TITLE}" \
             -f body="$BODY" \
             -f "labels[]=ai:copilot-fix")
 
