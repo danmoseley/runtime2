@@ -49,7 +49,7 @@ Aggregator sets ai:ready-for-human → human reviews final PR
 - [x] **Validate iteration agent** — `push_to_pull_request_branch` works on non-fork repos (runtime2). **Blocked on fork repos** (`head.repo.fork=true`).
 - [x] **Wire Reviews → Aggregator trigger** — `dispatch-aggregator.yml` fires on code-review/api-review completion
 - [x] **Wire Aggregator → Iteration trigger** — `dispatch-iteration.yml` fires on aggregator completion (both success+failure)
-- [x] **Wire Fixer → Reviews trigger** — `dispatch-reviews.yml` fires on fixer completion, finds PR by `ai:agent-fix` label
+- [x] **Wire Fixer → Reviews trigger** — `review-orchestrator.yml` fires on fixer completion, finds PR by `ai:agent-fix` label
 - [ ] **Full pipeline end-to-end** — In progress: PR #6 (issue #124968) running through fixer → reviews → aggregator → iteration
 - [ ] **Exit condition** — aggregator recognizes "no blocking issues" and sets `ai:ready-for-human` instead of looping
 

@@ -1,6 +1,6 @@
 name: Dispatch Iteration After Aggregator
 
-# DISABLED event-driven trigger: The sequential path in dispatch-reviews.yml
+# DISABLED event-driven trigger: The sequential path in review-orchestrator.yml
 # handles the full orchestration loop (reviews → aggregator → iteration)
 # with correct PR tracking. This event-driven path caused multi-PR
 # ambiguity bugs because lock.yml runs return inputs:null via API.

@@ -29,7 +29,7 @@ Settings and configuration needed in a repo to run the agentic bug-fixing pipeli
 ## Required Files
 
 - `.github/workflows/copilot-setup-steps.yml` — Copilot agent environment setup
-- `.github/workflows/dispatch-reviews.yml` — Main orchestrator
+- `.github/workflows/review-orchestrator.yml` — Main orchestrator
 - `.github/workflows/code-review.md` + `.lock.yml` — Code reviewer
 - `.github/workflows/api-review.md` + `.lock.yml` — API reviewer
 - `.github/workflows/security-review.md` + `.lock.yml` — Security reviewer

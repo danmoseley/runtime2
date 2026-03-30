@@ -1,6 +1,6 @@
 name: Dispatch Aggregator After Reviews
 
-# MANUAL-ONLY: The sequential path in dispatch-reviews.yml handles the full
+# MANUAL-ONLY: The sequential path in review-orchestrator.yml handles the full
 # orchestration loop (reviews → aggregator → iteration) with correct PR
 # tracking. This event-driven path was disabled because lock.yml runs
 # return inputs:null via API, causing multi-PR ambiguity bugs.
