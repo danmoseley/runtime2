@@ -637,7 +637,7 @@ namespace System.Text.RegularExpressions.Tests
                     for (int gCtr = 0; gCtr < m.Groups.Count; gCtr++)
                     {
                         Group group = m.Groups[gCtr];
-                        actual.AppendLine($"      Group {gCtr}: {(group.Value == "" ? "<empty>" : "'" + group.Value + "'")}");
+                        actual.AppendLine($"      Group {gCtr}: {(group.Value == "" ? "<empty>" : $"'{group.Value}'")}");
                         actual.AppendLine($"         Number of Captures: {group.Captures.Count}");
                         for (int cCtr = 0; cCtr < group.Captures.Count; cCtr++)
                         {

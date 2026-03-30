@@ -386,7 +386,7 @@ public partial class ApkBuilder
 
             if (!string.IsNullOrEmpty(DiagnosticPorts))
             {
-                defines.AppendLine("add_definitions(-DDIAGNOSTIC_PORTS=\"" + DiagnosticPorts + "\")");
+                defines.AppendLine($"add_definitions(-DDIAGNOSTIC_PORTS=\"{DiagnosticPorts}\")");
             }
 
             cmakeLists = cmakeLists.Replace("%Defines%", defines.ToString());

@@ -231,7 +231,7 @@ internal sealed class Xcode
         if (Target == TargetNames.MacCatalyst)
         {
             // min deploy target version is passed later when invoking xcodebuild
-            cmakeArgs.Append(" -DCMAKE_OSX_ARCHITECTURES=" + XcodeArch);
+            cmakeArgs.Append($" -DCMAKE_OSX_ARCHITECTURES={XcodeArch}");
         }
         else
         {
@@ -672,22 +672,22 @@ internal sealed class Xcode
             {
                 case TargetNames.iOS:
                     sdk = "iphoneos";
-                    args.Append(" -arch " + XcodeArch)
+                    args.Append($" -arch {XcodeArch}")
                         .Append(" -sdk ").Append(sdk);
                     break;
                 case TargetNames.iOSsim:
                     sdk = "iphonesimulator";
-                    args.Append(" -arch " + XcodeArch)
+                    args.Append($" -arch {XcodeArch}")
                         .Append(" -sdk ").Append(sdk);
                     break;
                 case TargetNames.tvOS:
                     sdk = "appletvos";
-                    args.Append(" -arch " + XcodeArch)
+                    args.Append($" -arch {XcodeArch}")
                         .Append(" -sdk ").Append(sdk);
                     break;
                 case TargetNames.tvOSsim:
                     sdk = "appletvsimulator";
-                    args.Append(" -arch " + XcodeArch)
+                    args.Append($" -arch {XcodeArch}")
                         .Append(" -sdk ").Append(sdk);
                     break;
                 default:
@@ -707,12 +707,12 @@ internal sealed class Xcode
             {
                 case TargetNames.iOSsim:
                     sdk = "iphonesimulator";
-                    args.Append(" -arch " + XcodeArch)
+                    args.Append($" -arch {XcodeArch}")
                         .Append(" -sdk ").Append(sdk);
                     break;
                 case TargetNames.tvOSsim:
                     sdk = "appletvsimulator";
-                    args.Append(" -arch " + XcodeArch)
+                    args.Append($" -arch {XcodeArch}")
                         .Append(" -sdk ").Append(sdk);
                     break;
                 default:

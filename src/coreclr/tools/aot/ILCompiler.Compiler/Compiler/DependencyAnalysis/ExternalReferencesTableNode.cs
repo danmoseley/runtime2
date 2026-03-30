@@ -29,7 +29,7 @@ namespace ILCompiler.DependencyAnalysis
 
         public void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
         {
-            sb.Append(nameMangler.CompilationUnitPrefix).Append("__external_" + _blobName + "_references");
+            sb.Append(nameMangler.CompilationUnitPrefix).Append($"__external_{_blobName}_references");
         }
         public int Offset => 0;
         public override bool IsShareable => false;

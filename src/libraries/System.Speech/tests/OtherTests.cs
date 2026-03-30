@@ -59,7 +59,7 @@ namespace SampleSynthesisTests
                 string[] valnames = key.GetValueNames();
                 foreach (string valname in valnames)
                 {
-                    sb.AppendLine(new string(' ', indent) + valname + ": " + key.GetValue(valname));
+                    sb.AppendLine($"{new string(' ', indent)}{valname}: {key.GetValue(valname)}");
                 }
 
                 string[] names = key.GetSubKeyNames();

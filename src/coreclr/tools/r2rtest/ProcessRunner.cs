@@ -286,7 +286,7 @@ public class ProcessRunner : IDisposable
             WriteLog(data);
             lock (_outputCapture)
             {
-                _outputCapture.AppendLine("  " + data);
+                _outputCapture.AppendLine($"  {data}");
             }
         }
     }
@@ -299,7 +299,7 @@ public class ProcessRunner : IDisposable
             WriteLog(data);
             lock (_outputCapture)
             {
-                _outputCapture.AppendLine("!! " + data);
+                _outputCapture.AppendLine($"!! {data}");
             }
         }
     }

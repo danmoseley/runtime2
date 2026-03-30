@@ -18,12 +18,12 @@ namespace Mono.Linker.Tests.TestCasesRunner
                 var sb = new StringBuilder();
                 sb.AppendLine("<linker>");
 
-                sb.AppendLine(" <assembly fullname=\"" + assembly.FullName + "\">");
+                sb.AppendLine($" <assembly fullname=\"{assembly.FullName}\">");
 
                 if (method != null)
                 {
-                    sb.AppendLine("  <type fullname=\"" + method.DeclaringType.FullName + "\">");
-                    sb.AppendLine("   <method name=\"" + method.Name + "\"/>");
+                    sb.AppendLine($"  <type fullname=\"{method.DeclaringType.FullName}\">");
+                    sb.AppendLine($"   <method name=\"{method.Name}\"/>");
                     sb.AppendLine("  </type>");
                 }
 

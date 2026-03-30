@@ -104,13 +104,13 @@ namespace Internal.Runtime.TypeLoader
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine("Generic virtual method pointer lookup failure.");
                 sb.AppendLine();
-                sb.AppendLine("Declaring type: " + GetTypeNameDebug(slotMethod.OwningType));
-                sb.AppendLine("Target type: " + GetTypeNameDebug(targetType));
-                sb.AppendLine("Method name: " + slotMethod.GetName());
+                sb.AppendLine($"Declaring type: {GetTypeNameDebug(slotMethod.OwningType)}");
+                sb.AppendLine($"Target type: {GetTypeNameDebug(targetType)}");
+                sb.AppendLine($"Method name: {slotMethod.GetName()}");
                 sb.AppendLine("Instantiation:");
                 for (int i = 0; i < slotMethod.Instantiation.Length; i++)
                 {
-                    sb.AppendLine("  Argument " + i.LowLevelToString() + ": " + GetTypeNameDebug(slotMethod.Instantiation[i]));
+                    sb.AppendLine($"  Argument {i.LowLevelToString()}: {GetTypeNameDebug(slotMethod.Instantiation[i])}");
                 }
 
                 Environment.FailFast(sb.ToString());
@@ -133,12 +133,12 @@ namespace Internal.Runtime.TypeLoader
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine("Failed to create generic virtual method implementation");
                 sb.AppendLine();
-                sb.AppendLine("Declaring type: " + GetTypeNameDebug(result.OwningType));
-                sb.AppendLine("Method name: " + result.GetName());
+                sb.AppendLine($"Declaring type: {GetTypeNameDebug(result.OwningType)}");
+                sb.AppendLine($"Method name: {result.GetName()}");
                 sb.AppendLine("Instantiation:");
                 for (int i = 0; i < result.Instantiation.Length; i++)
                 {
-                    sb.AppendLine("  Argument " + i.LowLevelToString() + ": " + GetTypeNameDebug(result.Instantiation[i]));
+                    sb.AppendLine($"  Argument {i.LowLevelToString()}: {GetTypeNameDebug(result.Instantiation[i])}");
                 }
                 Environment.FailFast(sb.ToString());
             }

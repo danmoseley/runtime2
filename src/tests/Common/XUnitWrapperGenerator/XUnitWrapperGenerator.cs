@@ -432,7 +432,7 @@ public sealed class XUnitWrapperGenerator : IIncrementalGenerator
         builder.AppendLine();
 
         builder.Append(testExecutorBuilder);
-        builder.AppendLine("public static class TestCount { public const int Count = " + totalTestsEmitted.ToString() + "; }");
+        builder.AppendLine($"public static class TestCount {{ public const int Count = {totalTestsEmitted}; }}");
         return builder.GetCode();
     }
 

@@ -44,13 +44,13 @@ namespace ILCompiler.Reflection.ReadyToRun
                     if (category == UnicodeCategory.Surrogate)
                     {
                         // Escape an unpaired surrogate
-                        builder.Append(@"\u" + ((int)c).ToString("x4"));
+                        builder.Append($@"\u{(int)c:x4}");
                     }
                     else if (NeedsEscaping(category))
                     {
                         // A surrogate pair that needs to be escaped
                         int codePoint = char.ConvertToUtf32(value, i);
-                        builder.Append(@"\U" + codePoint.ToString("x8"));
+                        builder.Append($@"\U{codePoint:x8}");
                         i++; // Skip the already-encoded second surrogate of the pair
                     }
                     else

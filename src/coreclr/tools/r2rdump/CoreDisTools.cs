@@ -875,7 +875,7 @@ namespace R2RDump
                     translated.Append($"#0x{target & 0xfff:x}");
                     if (targetName != null)
                     {
-                        AppendComment(translated, "import{" + targetName + "}");
+                        AppendComment(translated, $"import{{{targetName}}}");
                     }
                 }
 

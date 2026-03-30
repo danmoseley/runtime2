@@ -39,7 +39,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         public void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
         {
-            sb.Append("__coldcode_" + nameMangler.GetMangledMethodName(_owningMethod));
+            sb.Append($"__coldcode_{nameMangler.GetMangledMethodName(_owningMethod)}");
         }
 
         public override int CompareToImpl(ISortableNode other, CompilerComparer comparer)

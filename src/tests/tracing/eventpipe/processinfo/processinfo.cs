@@ -76,7 +76,7 @@ namespace Tracing.Tests.ProcessInfoValidation
                 else
                 {
                     // assume anything else is a file/executable so get the full path
-                    sb.Append((new FileInfo(parts[i])).FullName + " ");
+                    sb.Append($"{new FileInfo(parts[i]).FullName} ");
                 }
             }
 

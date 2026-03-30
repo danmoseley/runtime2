@@ -535,7 +535,7 @@ namespace MethodDictionaryTest
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void M()
         {
-            DictionariesTest.s_Result.AppendLine("MyClass1<" + typeof(T).Name + ">.M()");
+            DictionariesTest.s_Result.AppendLine($"MyClass1<{typeof(T).Name}>.M()");
         }
     }
 
@@ -544,7 +544,7 @@ namespace MethodDictionaryTest
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void M<T>()
         {
-            DictionariesTest.s_Result.AppendLine("MyClass2.M<" + typeof(T).Name + ">()");
+            DictionariesTest.s_Result.AppendLine($"MyClass2.M<{typeof(T).Name}>()");
         }
     }
 
@@ -553,13 +553,13 @@ namespace MethodDictionaryTest
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void SGenM<Y>()
         {
-            DictionariesTest.s_Result.AppendLine("Yahoo<" + typeof(X).Name + ">.SGenM<" + typeof(Y).Name + ">()");
+            DictionariesTest.s_Result.AppendLine($"Yahoo<{typeof(X).Name}>.SGenM<{typeof(Y).Name}>()");
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void GenM<Y>(bool recurse = true)
         {
-            DictionariesTest.s_Result.AppendLine("Yahoo<" + typeof(X).Name + ">.GenM<" + typeof(Y).Name + ">()");
+            DictionariesTest.s_Result.AppendLine($"Yahoo<{typeof(X).Name}>.GenM<{typeof(Y).Name}>()");
 
             if (recurse)
             {
@@ -582,7 +582,7 @@ namespace MethodDictionaryTest
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void GenM<M, N>()
         {
-            DictionariesTest.s_Result.AppendLine("Foo.GenM<" + typeof(M).Name + "," + typeof(N).Name + ">()");
+            DictionariesTest.s_Result.AppendLine($"Foo.GenM<{typeof(M).Name},{typeof(N).Name}>()");
             new Yahoo<N>().GenM<M>();
         }
     }
@@ -592,7 +592,7 @@ namespace MethodDictionaryTest
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void M1()
         {
-            DictionariesTest.s_Result.AppendLine("Bar<" + typeof(T).Name + "," + typeof(U).Name + ">.M1()");
+            DictionariesTest.s_Result.AppendLine($"Bar<{typeof(T).Name},{typeof(U).Name}>.M1()");
             new Foo().GenM<U, T>();
         }
     }
@@ -611,19 +611,19 @@ namespace MethodDictionaryTest
             mi.Invoke(o, null);
 
             StringBuilder expected = new StringBuilder();
-            expected.AppendLine("Bar<" + inst1.Name + "," + inst2.Name + ">.M1()");
-            expected.AppendLine("Foo.GenM<" + inst2.Name + "," + inst1.Name + ">()");
-            expected.AppendLine("Yahoo<" + inst1.Name + ">.GenM<" + inst2.Name + ">()");
-            expected.AppendLine("Yahoo<" + inst1.Name + ">.GenM<" + inst2.Name + ">()");
-            expected.AppendLine("Yahoo<" + inst1.Name + ">.GenM<" + inst1.Name + ">()");
-            expected.AppendLine("MyClass1<" + inst1.Name + ">.M()");
-            expected.AppendLine("MyClass1<" + inst2.Name + ">.M()");
-            expected.AppendLine("MyClass2.M<" + inst1.Name + ">()");
-            expected.AppendLine("MyClass2.M<" + inst2.Name + ">()");
-            expected.AppendLine("Yahoo<" + inst1.Name + ">.SGenM<" + inst2.Name + ">()");
-            expected.AppendLine("Yahoo<" + inst1.Name + ">.SGenM<" + inst1.Name + ">()");
-            expected.AppendLine("Yahoo<" + inst2.Name + ">.SGenM<" + inst2.Name + ">()");
-            expected.AppendLine("Yahoo<" + inst2.Name + ">.SGenM<" + inst1.Name + ">()");
+            expected.AppendLine($"Bar<{inst1.Name},{inst2.Name}>.M1()");
+            expected.AppendLine($"Foo.GenM<{inst2.Name},{inst1.Name}>()");
+            expected.AppendLine($"Yahoo<{inst1.Name}>.GenM<{inst2.Name}>()");
+            expected.AppendLine($"Yahoo<{inst1.Name}>.GenM<{inst2.Name}>()");
+            expected.AppendLine($"Yahoo<{inst1.Name}>.GenM<{inst1.Name}>()");
+            expected.AppendLine($"MyClass1<{inst1.Name}>.M()");
+            expected.AppendLine($"MyClass1<{inst2.Name}>.M()");
+            expected.AppendLine($"MyClass2.M<{inst1.Name}>()");
+            expected.AppendLine($"MyClass2.M<{inst2.Name}>()");
+            expected.AppendLine($"Yahoo<{inst1.Name}>.SGenM<{inst2.Name}>()");
+            expected.AppendLine($"Yahoo<{inst1.Name}>.SGenM<{inst1.Name}>()");
+            expected.AppendLine($"Yahoo<{inst2.Name}>.SGenM<{inst2.Name}>()");
+            expected.AppendLine($"Yahoo<{inst2.Name}>.SGenM<{inst1.Name}>()");
 
             using (StringReader expectedReader = new StringReader(expected.ToString()))
             {

@@ -147,7 +147,7 @@ namespace Legacy.Support
 
             foreach (object key in _properties.Keys)
             {
-                strBuf.Append(key + "=" + _properties[key] + "\n");
+                strBuf.Append($"{key}={_properties[key]}\n");
             }
 
             return strBuf.ToString();

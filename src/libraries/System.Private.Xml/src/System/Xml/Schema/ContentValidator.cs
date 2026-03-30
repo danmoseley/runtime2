@@ -1516,7 +1516,7 @@ namespace System.Xml.Schema
             bb.AppendLine("Positions");
             for (int i = 0; i < _positions!.Count; i++)
             {
-                bb.AppendLine(i + " " + _positions[i].symbol.ToString(NumberFormatInfo.InvariantInfo) + " " + _symbols!.NameOf(_positions[i].symbol));
+                bb.AppendLine($"{i} {_positions[i].symbol.ToString(NumberFormatInfo.InvariantInfo)} {_symbols!.NameOf(_positions[i].symbol)}");
             }
 
             bb.AppendLine("Followpos");

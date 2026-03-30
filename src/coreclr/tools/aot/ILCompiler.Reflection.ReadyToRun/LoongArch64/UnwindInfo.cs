@@ -37,7 +37,7 @@ namespace ILCompiler.Reflection.ReadyToRun.LoongArch64
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"        Epilog Start Offset: 0x{EpilogStartOffset:X5} Actual offset = 0x{EpilogStartOffset * 4:X5} Offset from main function begin = 0x{EpilogStartOffsetFromMainFunctionBegin:X6}");
-            sb.AppendLine($"        Condition: {Condition} (0x{Condition:X})" + ((Condition == 0xE) ? " (always)" : ""));
+            sb.AppendLine($"        Condition: {Condition} (0x{Condition:X}){(Condition == 0xE ? " (always)" : "")}");
             sb.Append($"        Epilog Start Index: {EpilogStartIndex} (0x{EpilogStartIndex:X})");
             return sb.ToString();
         }
