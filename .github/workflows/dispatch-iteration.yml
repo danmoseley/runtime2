@@ -53,9 +53,9 @@ jobs:
             fi
           fi
 
-          # Count existing iteration comments to enforce max cap
-          ITER_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-            --jq '[.[] | select(.body | test("Iteration: Review Feedback Applied"; "i"))] | length')
+          # Count iterations by ai:iteration-N labels (reliable, not regex-fragile)
+          ITER_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --jq '[.[] | select(.name | test("^ai:iteration-"))] | length')
           echo "Iteration count so far: $ITER_COUNT (max: $MAX_ITERATIONS)"
 
           if [ "$ITER_COUNT" -ge "$MAX_ITERATIONS" ]; then
@@ -77,9 +77,13 @@ jobs:
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
 
-          # Gather all review comments as instructions for the iteration agent
+          # Only extract from trusted reviewer comments (author + marker validation)
+          TRUSTED_AUTHORS='github-actions[bot]'
           BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-            --jq '[.[] | select(.body | test("Review|review|API Surface"; "i"))] | map(.body) | join("\n\n---\n\n") // empty')
+            --jq "[.[] | select(
+              (.user.login == \"${TRUSTED_AUTHORS}\") and
+              (.body | (contains(\"gh-aw-agentic-workflow:\") or contains(\"gh-aw-security-review\") or contains(\"gh-aw-review-aggregator\")))
+            )] | map(.body) | join(\"\n\n---\n\n\") // empty")
 
           if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
             BODY="Address the review feedback on this PR. Read the review comments carefully and fix all issues identified."
@@ -96,9 +100,10 @@ jobs:
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
           PR_AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login')
-          echo "PR #$PR_NUM author: $PR_AUTHOR"
+          HEAD_BRANCH=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.ref')
+          echo "PR #$PR_NUM author: $PR_AUTHOR, branch: $HEAD_BRANCH"
 
-          if [[ "$PR_AUTHOR" == "copilot-swe-agent[bot]" ]]; then
+          if [[ "$PR_AUTHOR" == "copilot-swe-agent[bot]" ]] || [[ "$PR_AUTHOR" == "Copilot" ]] || [[ "$HEAD_BRANCH" == copilot/* ]]; then
             echo "fixer=copilot" >> "$GITHUB_OUTPUT"
           else
             echo "fixer=awf" >> "$GITHUB_OUTPUT"

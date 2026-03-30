@@ -375,8 +375,11 @@ jobs:
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
           PR_AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login')
-          echo "PR #$PR_NUM author: $PR_AUTHOR"
-          if [[ "$PR_AUTHOR" == "copilot-swe-agent[bot]" ]]; then
+          HEAD_BRANCH=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.ref')
+          echo "PR #$PR_NUM author: $PR_AUTHOR, branch: $HEAD_BRANCH"
+          # Copilot coding agent may show as "Copilot" or "copilot-swe-agent[bot]"
+          # Also detect by branch prefix copilot/
+          if [[ "$PR_AUTHOR" == "copilot-swe-agent[bot]" ]] || [[ "$PR_AUTHOR" == "Copilot" ]] || [[ "$HEAD_BRANCH" == copilot/* ]]; then
             echo "fixer=copilot" >> "$GITHUB_OUTPUT"
           else
             echo "fixer=awf" >> "$GITHUB_OUTPUT"
