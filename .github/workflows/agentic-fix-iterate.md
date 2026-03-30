@@ -94,7 +94,7 @@ From the PR metadata, extract:
 1. **Issue number** from the PR title (e.g., "Fix dotnet/runtime#124968" → 124968)
 2. **Files changed** — read these carefully, this is the original fix you must reproduce AND improve
 3. **The diff content** — understand exactly what was changed so you can re-apply it with fixes
-4. **Review comments** — find the aggregator synthesis comment (`<!-- gh-aw-review-aggregator -->`) for structured feedback
+4. **Review comments** — find the aggregator synthesis comment (`<!-- gh-aw-agentic-workflow: Review Aggregator`) for structured feedback
 5. **PR number** — you'll reference this in your new PR
 
 **Fix instructions from dispatch:**

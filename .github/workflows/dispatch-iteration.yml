@@ -147,6 +147,22 @@ jobs:
 
           echo "✅ Posted @copilot iteration comment on PR #$PR_NUM"
 
+      - name: Ensure ai:agent-fix label
+        if: steps.check-labels.outputs.needs_iteration == 'true' && steps.fixer-type.outputs.fixer == 'awf'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
+          # The iterate agent's safe-outputs requires ai:agent-fix on the PR
+          # to allow push_to_pull_request_branch. Copilot-created PRs won't have it.
+          LABELS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --jq '[.[].name] | join(",")')
+          if ! echo "$LABELS" | grep -q "ai:agent-fix"; then
+            echo "Adding ai:agent-fix label to PR #$PR_NUM"
+            gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+              -X POST --input - <<< '{"labels":["ai:agent-fix"]}' > /dev/null
+          fi
+
       - name: Dispatch AWF iteration agent
         if: steps.check-labels.outputs.needs_iteration == 'true' && steps.fixer-type.outputs.fixer == 'awf'
         env:

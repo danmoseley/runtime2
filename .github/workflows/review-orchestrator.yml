@@ -422,6 +422,23 @@ jobs:
           # Copilot. The AWF iterate agent can push to any branch including copilot/*.
           echo "fixer=awf" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure ai:agent-fix label
+        if: steps.check-iteration.outputs.needs_iteration == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          # The iterate agent's safe-outputs requires ai:agent-fix on the PR
+          # to allow push_to_pull_request_branch. PRs created by Copilot (native)
+          # won't have this label — only AWF fixer-created PRs get it automatically.
+          LABELS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --jq '[.[].name] | join(",")')
+          if ! echo "$LABELS" | grep -q "ai:agent-fix"; then
+            echo "Adding ai:agent-fix label to PR #$PR_NUM (required for iteration push)"
+            gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+              -X POST --input - <<< '{"labels":["ai:agent-fix"]}' > /dev/null
+          fi
+
       - name: Dispatch iteration agent
         if: steps.check-iteration.outputs.needs_iteration == 'true'
         env:
