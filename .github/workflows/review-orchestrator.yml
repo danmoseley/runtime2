@@ -173,6 +173,16 @@ jobs:
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Capture pre-dispatch timestamp
+        if: steps.find-pr.outputs.found == 'true'
+        id: pre-dispatch
+        run: |
+          # Record timestamp BEFORE dispatching reviews. Only comments created
+          # after this timestamp are trusted as results of this review cycle.
+          TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Pre-dispatch timestamp: $TS"
+          echo "dispatch_ts=$TS" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch Code Review
         if: steps.find-pr.outputs.found == 'true'
@@ -218,14 +228,13 @@ jobs:
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
 
-          # Get PR head SHA to verify comments are for current commit
+          # Get PR head SHA for logging (comments are filtered by dispatch timestamp, not SHA)
           HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
           echo "PR #$PR_NUM HEAD: $HEAD_SHA"
 
-          # Capture dispatch timestamp — only trust comments created after this
-          DISPATCH_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          echo "Dispatch timestamp: $DISPATCH_TS"
-          echo "dispatch_ts=$DISPATCH_TS" >> "$GITHUB_OUTPUT"
+          # Use pre-dispatch timestamp for filtering (captured before reviews were dispatched)
+          DISPATCH_TS="${{ steps.pre-dispatch.outputs.dispatch_ts }}"
+          echo "Using dispatch timestamp: $DISPATCH_TS"
 
           # Poll for review comments by marker + author + timestamp.
           # Only trust comments from github-actions[bot] created after dispatch.
@@ -297,7 +306,7 @@ jobs:
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
           # Remove previous outcome/confidence labels so aggregator starts clean
-          for LABEL in ai:ready-for-human ai:needs-iteration ai:failed ai:high-confidence ai:medium-confidence ai:low-confidence ai:has-breaking-concern ai:has-perf-concern ai:security-notice; do
+          for LABEL in ai:ready-for-human ai:needs-iteration ai:failed ai:high-confidence ai:medium-confidence ai:low-confidence ai:has-breaking-concern ai:has-perf-concern ai:security-notice ai:needs-broader-tests ai:needs-api-review; do
             gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels/$LABEL" -X DELETE 2>/dev/null || true
           done
           echo "Cleaned stale ai: labels from PR #$PR_NUM"
@@ -308,7 +317,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
-          DISPATCH_TS="${{ steps.wait-reviews.outputs.dispatch_ts }}"
+          DISPATCH_TS="${{ steps.pre-dispatch.outputs.dispatch_ts }}"
           # Delete ALL gh-aw comments OLDER than when we dispatched reviews this cycle.
           # This ensures the aggregator only sees fresh reviews from this run.
           # The prior aggregator output is especially dangerous — the model will
@@ -399,8 +408,11 @@ jobs:
           fi
 
           # Count iterations by timeline labeled events (tamper-resistant — survives label removal)
-          ITER_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/timeline?per_page=100" \
-            --jq '[.[] | select(.event == "labeled" and (.label.name | test("^ai:iteration-")))] | length')
+          # Use --paginate to handle PRs with >100 timeline events.
+          # --paginate + --jq outputs one result per page, so sum with awk.
+          ITER_COUNT=$(gh api --paginate "repos/${{ github.repository }}/issues/$PR_NUM/timeline?per_page=100" \
+            --jq '[.[] | select(.event == "labeled" and (.label.name | test("^ai:iteration-")))] | length' \
+            | awk '{s+=$1} END {print s+0}')
           echo "Iteration count (from timeline): $ITER_COUNT (max: $MAX_ITERATIONS)"
 
           if [ "$ITER_COUNT" -ge "$MAX_ITERATIONS" ]; then

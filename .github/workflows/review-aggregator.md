@@ -235,7 +235,7 @@ The examples above are illustrative. Your chosen labels MUST be derived from the
 - Be concise. Summary should be scannable in 30 seconds.
 - Deduplicate findings across reviewers.
 - If CI is pending, post what you have.
-- Your comment body MUST include both HTML markers (`<!-- gh-aw-pr-review-synthesis -->` and `<!-- gh-aw-review-aggregator -->`) and a `### Labels Applied` section listing the exact labels used in your `add_labels` call. Downstream parsing depends on these.
+- Your comment body MUST include a `### Labels Applied` section listing the exact labels used in your `add_labels` call. Downstream parsing depends on this. Do NOT include HTML comment markers in the body — the framework adds them automatically.
 - Only call `noop` if the PR doesn't exist or ZERO reviewer comments exist for the current commit.
 
 ## FINAL CHECK — LABEL COMPLIANCE
