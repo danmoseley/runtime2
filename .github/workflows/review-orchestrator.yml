@@ -301,6 +301,39 @@ jobs:
           done
           echo "Cleaned stale ai: labels from PR #$PR_NUM"
 
+      - name: Delete stale review comments
+        if: steps.find-pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          # The aggregator reads ALL comments and can be confused by old review
+          # comments from prior iterations. Delete old reviews, keeping only the
+          # latest set (posted after reviews were dispatched this cycle).
+          # The orchestrator's "Wait for reviews" step uses DISPATCH_TS to detect
+          # fresh comments; we keep any comment created in the last 30 minutes to
+          # be safe (current reviews take ~5 min to post).
+          CUTOFF=$(date -u -d '30 minutes ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-30M +%Y-%m-%dT%H:%M:%SZ)
+
+          STALE_IDS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+            --jq "[.[] | select(
+              .user.login == \"github-actions[bot]\" and
+              .created_at < \"$CUTOFF\" and
+              (.body | test(\"gh-aw-agentic-workflow:\"))
+            )] | .[].id")
+
+          if [ -z "$STALE_IDS" ]; then
+            echo "No stale review comments to delete"
+          else
+            COUNT=$(echo "$STALE_IDS" | wc -l)
+            echo "Deleting $COUNT stale review comments from PR #$PR_NUM"
+            echo "$STALE_IDS" | while read -r CID; do
+              [ -z "$CID" ] && continue
+              gh api "repos/${{ github.repository }}/issues/comments/$CID" -X DELETE 2>/dev/null || true
+            done
+            echo "✅ Stale review comments cleaned"
+          fi
+
       - name: Dispatch Review Aggregator
         if: steps.find-pr.outputs.found == 'true'
         id: dispatch-agg
