@@ -59,11 +59,24 @@ namespace System.Collections.Immutable.Tests
             yield return new object[] { new[] { 1, 2, 3, 4 }, 2, 2 };
         }
 
-        [Fact]
-        public void IndexOf_StartIndexEqualsLength_CountZero_ReturnsMinusOne()
+        [Theory]
+        [InlineData(new int[] { 1, 2, 3, 4 }, 4, 0)]   // startIndex == Length, count == 0
+        [InlineData(new int[] { 1, 2, 3, 4 }, 2, 0)]   // mid-range startIndex, count == 0
+        [InlineData(new int[] { 1, 2, 3, 4 }, 0, 0)]   // startIndex == 0, count == 0
+        [InlineData(new int[0], 0, 0)]                 // empty array
+        public void IndexOf_CountZero_ReturnsMinusOne(int[] items, int startIndex, int count)
         {
-            var arr = ImmutableArray.Create(1, 2, 3, 4);
-            Assert.Equal(-1, arr.IndexOf(2, 4, 0));
+            var arr = ImmutableArray.Create(items);
+            Assert.Equal(-1, arr.IndexOf(default, startIndex, count));
+        }
+
+        [Theory]
+        [InlineData(new int[] { 1, 2, 3, 4 }, -1, 0)]  // startIndex < 0
+        [InlineData(new int[] { 1, 2, 3, 4 }, 5, 0)]   // startIndex > Length
+        public void IndexOf_CountZero_InvalidStartIndex_Throws(int[] items, int startIndex, int count)
+        {
+            var arr = ImmutableArray.Create(items);
+            Assert.Throws<ArgumentOutOfRangeException>(() => arr.IndexOf(default, startIndex, count));
         }
 
         [Theory]

@@ -793,8 +793,10 @@ namespace System.Collections.Immutable
             /// <returns>The 0-based index into the array where the item was found; or -1 if it could not be found.</returns>
             public int IndexOf(T item, int startIndex, int count, IEqualityComparer<T>? equalityComparer)
             {
-                if (count == 0 && startIndex == 0)
+                if (count == 0)
                 {
+                    // Match Array.IndexOf: allow startIndex == this.Count when count == 0
+                    Requires.Range(startIndex >= 0 && startIndex <= this.Count, nameof(startIndex));
                     return -1;
                 }
 
