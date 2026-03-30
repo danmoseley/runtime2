@@ -146,9 +146,9 @@ Err toward PASS. If you are unsure whether something is a real concern, it is no
 
 ## Output Format
 
-Post your review as a comment using `add-comment`. Use this exact format:
+Post your review as a comment on PR #${{ github.event.pull_request.number || inputs.pr_number }} using `add_comment` with `item_number` set to ${{ github.event.pull_request.number || inputs.pr_number }}. You MUST include the `item_number` parameter — do NOT omit it. Use this structure (plain markdown, do NOT wrap in code blocks):
 
-```markdown
+---
 ## 🔒 Security Review — PR #NUMBER
 
 **Security-relevant changes detected:** Yes/No
@@ -166,7 +166,7 @@ Post your review as a comment using `add-comment`. Use this exact format:
 ### Verdict: [PASS ✅ / CONCERN ⚠️ / BLOCK 🛑]
 
 **Reasoning:** Brief explanation of the overall security posture of this change.
-```
+---
 
 Include `<!-- gh-aw-security-review -->` at the end of your comment for machine identification.
 
