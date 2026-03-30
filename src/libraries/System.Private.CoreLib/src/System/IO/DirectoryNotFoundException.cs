@@ -35,6 +35,55 @@ namespace System.IO
             HResult = HResults.COR_E_DIRECTORYNOTFOUND;
         }
 
+        public DirectoryNotFoundException(string? message, string? directoryPath)
+            : base(message)
+        {
+            HResult = HResults.COR_E_DIRECTORYNOTFOUND;
+            DirectoryPath = directoryPath;
+        }
+
+        public DirectoryNotFoundException(string? message, string? directoryPath, Exception? innerException)
+            : base(message, innerException)
+        {
+            HResult = HResults.COR_E_DIRECTORYNOTFOUND;
+            DirectoryPath = directoryPath;
+        }
+
+        public override string Message
+        {
+            get
+            {
+                SetMessageField();
+                return _message ?? SR.Arg_DirectoryNotFoundException;
+            }
+        }
+
+        private void SetMessageField()
+        {
+            if (_message == null && DirectoryPath != null)
+            {
+                _message = SR.Format(SR.IO_PathNotFound_Path, DirectoryPath);
+            }
+        }
+
+        public string? DirectoryPath { get; }
+
+        public override string ToString()
+        {
+            string s = GetType().ToString() + ": " + Message;
+
+            if (!string.IsNullOrEmpty(DirectoryPath))
+                s += Environment.NewLineConst + SR.Format(SR.IO_DirectoryName_Name, DirectoryPath);
+
+            if (InnerException != null)
+                s += Environment.NewLineConst + InnerExceptionPrefix + InnerException.ToString();
+
+            if (StackTrace != null)
+                s += Environment.NewLineConst + StackTrace;
+
+            return s;
+        }
+
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId, UrlFormat = Obsoletions.SharedUrlFormat)]
         [EditorBrowsable(EditorBrowsableState.Never)]
         protected DirectoryNotFoundException(SerializationInfo info, StreamingContext context)
