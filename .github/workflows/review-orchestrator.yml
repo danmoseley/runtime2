@@ -42,7 +42,7 @@ jobs:
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Find PR
         id: find-pr
@@ -77,9 +77,9 @@ jobs:
               exit 0
             fi
             echo "Copilot PR #$PR_NUM ready for review ($FILES files)"
-            # Add ai:copilot-fix label if not present
+            # Add both labels: ai:copilot-fix for tracking + ai:agent-fix for iteration push permission
             gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
-              -X POST --input - <<< '{"labels":["ai:copilot-fix"]}' > /dev/null 2>&1 || true
+              -X POST --input - <<< '{"labels":["ai:copilot-fix","ai:agent-fix"]}' > /dev/null 2>&1 || true
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
 
@@ -106,6 +106,9 @@ jobs:
               exit 0
             fi
             echo "Copilot iteration push to PR #$PR_NUM"
+            # Ensure labels are present for iteration
+            gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+              -X POST --input - <<< '{"labels":["ai:copilot-fix","ai:agent-fix"]}' > /dev/null 2>&1 || true
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
 
@@ -145,9 +148,9 @@ jobs:
                 exit 0
               fi
               echo "Copilot PR #$PR_NUM ($FILES files) ready for review"
-              # Add ai:copilot-fix label
+              # Add both labels: ai:copilot-fix for tracking + ai:agent-fix for iteration push permission
               gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
-                -X POST --input - <<< '{"labels":["ai:copilot-fix"]}' > /dev/null 2>&1 || true
+                -X POST --input - <<< '{"labels":["ai:copilot-fix","ai:agent-fix"]}' > /dev/null 2>&1 || true
             else
               # AWF fixer/iteration agent — find PR by triggering run's branch
               AWF_BRANCH="${{ github.event.workflow_run.head_branch }}"
@@ -531,3 +534,41 @@ jobs:
             -f "fix_instructions=$INSTRUCTIONS" \
             -f "upstream_repo=dotnet/runtime"
           echo "✅ Iteration agent dispatched for PR #$PR_NUM"
+
+      # Wait for the iterate agent to finish, then re-dispatch orchestrator.
+      # workflow_run events don't fire for workflows triggered by GITHUB_TOKEN,
+      # so we must explicitly poll and re-trigger.
+      - name: Wait for iteration and re-dispatch
+        if: steps.check-iteration.outputs.needs_iteration == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
+          echo "Waiting for iteration agent to push to PR #$PR_NUM..."
+
+          # Get current head SHA to detect when iterate agent pushes new commits
+          OLD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
+          echo "Current head: $OLD_SHA"
+
+          # Poll for new commits (up to 45 min — iterate agent timeout is 45 min)
+          for i in $(seq 1 90); do
+            sleep 30
+            NEW_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha' 2>/dev/null || echo "$OLD_SHA")
+            if [ "$NEW_SHA" != "$OLD_SHA" ]; then
+              echo "✅ New commit detected on PR #$PR_NUM: $NEW_SHA (was $OLD_SHA)"
+              echo "Waiting 30s for any follow-up commits..."
+              sleep 30
+              echo "Re-dispatching orchestrator for re-review"
+              gh workflow run review-orchestrator.yml \
+                -R "${{ github.repository }}" \
+                -f "pr_number=$PR_NUM"
+              echo "✅ Orchestrator re-dispatched for PR #$PR_NUM"
+              exit 0
+            fi
+            echo "Poll $i/90: head still $NEW_SHA"
+          done
+
+          echo "::warning::Iteration agent did not push new commits within 45 min"
+          # Mark as failed so it doesn't silently stall
+          gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            -X POST --input - <<< '{"labels":["ai:iteration-stalled"]}' > /dev/null 2>&1 || true
