@@ -1,0 +1,105 @@
+name: Dispatch Copilot Fixer
+
+# Creates a runtime2 issue pointing to an upstream dotnet/runtime issue,
+# then assigns copilot-swe-agent to fix it. Copilot will follow the
+# upstream link, create a PR in this repo, and push a fix.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Upstream dotnet/runtime issue number'
+        required: true
+      library:
+        description: 'Target library (e.g. System.Collections.Immutable)'
+        required: false
+        default: ''
+      summary:
+        description: 'Brief issue summary (optional hedge if link-following fails)'
+        required: false
+        default: ''
+
+jobs:
+  create-and-assign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create runtime2 issue
+        id: create-issue
+        env:
+          GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
+        run: |
+          ISSUE_NUM="${{ inputs.issue_number }}"
+          LIBRARY="${{ inputs.library }}"
+          SUMMARY="${{ inputs.summary }}"
+          UPSTREAM_URL="https://github.com/dotnet/runtime/issues/${ISSUE_NUM}"
+
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="See the upstream issue for full details."
+          fi
+
+          LIBRARY_NOTE=""
+          if [ -n "$LIBRARY" ]; then
+            LIBRARY_NOTE="- **Library:** ${LIBRARY}"
+          fi
+
+          BODY="## Fix upstream issue: dotnet/runtime#${ISSUE_NUM}
+
+          **Upstream issue:** ${UPSTREAM_URL}
+
+          ### Summary
+          ${SUMMARY}
+
+          ### Context
+          ${LIBRARY_NOTE}
+
+          ### Instructions
+          1. Read the upstream issue at the link above for full context.
+          2. Implement a fix in the relevant \`src/libraries/\` directory.
+          3. Add or update unit tests.
+          4. Build and run tests to verify.
+
+          ### Constraints
+          - Follow existing code style and patterns.
+          - Minimize changes outside the target library."
+
+          # Dedent the heredoc
+          BODY=$(echo "$BODY" | sed 's/^          //')
+
+          RESULT=$(gh api "repos/${{ github.repository }}/issues" \
+            -X POST \
+            -f title="[Copilot Fix] dotnet/runtime#${ISSUE_NUM}" \
+            -f body="$BODY" \
+            -f "labels[]=ai:copilot-fix")
+
+          NEW_ISSUE_NUM=$(echo "$RESULT" | jq -r '.number')
+          NEW_ISSUE_NODE_ID=$(echo "$RESULT" | jq -r '.node_id')
+          echo "Created issue #$NEW_ISSUE_NUM (node: $NEW_ISSUE_NODE_ID)"
+          echo "issue_num=$NEW_ISSUE_NUM" >> "$GITHUB_OUTPUT"
+          echo "node_id=$NEW_ISSUE_NODE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Assign Copilot to issue
+        env:
+          GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
+        run: |
+          ISSUE_NODE_ID="${{ steps.create-issue.outputs.node_id }}"
+          # Copilot SWE agent bot ID (cached from GraphQL suggestedActors query)
+          COPILOT_NODE_ID="BOT_kgDOC9w8XQ"
+
+          echo "Assigning copilot-swe-agent to issue #${{ steps.create-issue.outputs.issue_num }}"
+
+          gh api graphql \
+            -H "GraphQL-Features: issues_copilot_assignment_api_support" \
+            -f query="
+              mutation {
+                addAssigneesToAssignable(input: {
+                  assignableId: \"${ISSUE_NODE_ID}\",
+                  assigneeIds: [\"${COPILOT_NODE_ID}\"]
+                }) {
+                  assignable {
+                    ... on Issue { number title }
+                  }
+                }
+              }"
+
+          echo "✅ Assigned copilot-swe-agent to issue #${{ steps.create-issue.outputs.issue_num }}"

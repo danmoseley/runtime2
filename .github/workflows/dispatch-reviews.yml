@@ -1,43 +1,99 @@
 name: Dispatch Reviews After Fixer
 
-# PRs created by GITHUB_TOKEN don't trigger pull_request workflows.
-# workflow_run also won't fire for workflows dispatched by GITHUB_TOKEN.
-# So this workflow acts as a full orchestrator: dispatch reviews, poll for
-# completion, then dispatch the aggregator — all in one job.
+# Full orchestrator: dispatch reviews, poll for completion, dispatch aggregator.
 #
-# Triggers on both fixer (first round) and iteration agent (re-review rounds).
+# Triggers:
+# 1. AWF fixer/iteration agent completes (workflow_run)
+# 2. Copilot PR becomes ready for review (pull_request: ready_for_review)
+# 3. Copilot pushes iteration commits (push to copilot/* branches)
+#
 # MAX_ITERATIONS guard in "Check if iteration needed" prevents infinite loops.
 
 on:
   workflow_run:
     workflows: ["Fix Issue Agent", "Fix Iteration Agent"]
     types: [completed]
+  pull_request:
+    types: [ready_for_review]
+  push:
+    branches:
+      - 'copilot/**'
 
 jobs:
   orchestrate-reviews:
-    if: github.event.workflow_run.conclusion == 'success'
+    # For workflow_run: only on success
+    # For pull_request/push: always run (guards below filter non-Copilot PRs)
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Find PR created by fixer
+      - name: Find PR
         id: find-pr
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          RUN_ID="${{ github.event.workflow_run.id }}"
-          echo "Fixer run: $RUN_ID"
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # Copilot PR ready for review
+            AUTHOR="${{ github.event.pull_request.user.login }}"
+            if [[ "$AUTHOR" != "copilot-swe-agent[bot]" ]]; then
+              echo "Not a Copilot PR (author: $AUTHOR), skipping"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            PR_NUM="${{ github.event.pull_request.number }}"
+            FILES="${{ github.event.pull_request.changed_files }}"
+            if [ "$FILES" -eq 0 ] 2>/dev/null; then
+              echo "Copilot PR #$PR_NUM has no files yet, skipping"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Copilot PR #$PR_NUM ready for review ($FILES files)"
+            # Add ai:copilot-fix label if not present
+            gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+              -X POST --input - <<< '{"labels":["ai:copilot-fix"]}' > /dev/null 2>&1 || true
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
 
-          # Find the most recently opened PR with ai:agent-fix label
-          PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&sort=created&direction=desc&per_page=5" \
-            --jq '[.[] | select(.labels | map(.name) | index("ai:agent-fix"))] | .[0].number // empty')
+          elif [ "${{ github.event_name }}" == "push" ]; then
+            # Push to copilot/* branch — find associated open PR
+            BRANCH="${{ github.ref_name }}"
+            echo "Push to branch: $BRANCH"
+            PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:$BRANCH&per_page=1" \
+              --jq '.[0].number // empty')
+            if [ -z "$PR_NUM" ]; then
+              echo "No open PR for branch $BRANCH"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            AUTHOR=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.user.login')
+            if [[ "$AUTHOR" != "copilot-swe-agent[bot]" ]]; then
+              echo "PR #$PR_NUM not by Copilot (author: $AUTHOR), skipping"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Copilot iteration push to PR #$PR_NUM"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
 
-          if [ -z "$PR_NUM" ]; then
-            echo "No ai:agent-fix PR found"
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          else
+            # workflow_run trigger (AWF fixer/iteration agent)
+            RUN_ID="${{ github.event.workflow_run.id }}"
+            echo "Fixer run: $RUN_ID"
 
-          echo "Found PR #$PR_NUM"
+            # Find the most recently opened PR with ai:agent-fix label
+            PR_NUM=$(gh api "repos/${{ github.repository }}/pulls?state=open&sort=created&direction=desc&per_page=5" \
+              --jq '[.[] | select(.labels | map(.name) | index("ai:agent-fix"))] | .[0].number // empty')
+
+            if [ -z "$PR_NUM" ]; then
+              echo "No ai:agent-fix PR found"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Found PR #$PR_NUM"
           echo "found=true" >> "$GITHUB_OUTPUT"
           echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
 
