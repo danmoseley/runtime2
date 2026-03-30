@@ -147,13 +147,11 @@ Before calling any safe outputs, verify your label list:
 
 **Action 1 — Post the summary comment:**
 
-```json
-{"add_comment": {"item_number": ${{ inputs.pr_number }}, "body": "## 📝 Review Synthesis — PR #${{ inputs.pr_number }}\n\n..."}}
-```
+Call `add_comment` with `item_number` = ${{ inputs.pr_number }} and a `body` containing your synthesis.
 
-Use this template for the body:
+Format the body as PLAIN MARKDOWN (do NOT wrap it in backtick code blocks). Use this structure:
 
-```markdown
+---
 ## 📝 Review Synthesis — PR #NUMBER
 
 ### Summary
@@ -167,16 +165,19 @@ Use this template for the body:
 [If needs iteration, list the specific blocking issues to fix]
 
 ### Labels Applied
-`[your confidence label]` `[your outcome label]` `[any signal labels]`
-```
+- `[your confidence label]`
+- `[your outcome label]`
+- `[any signal labels]`
+---
+
+IMPORTANT: The body must be plain markdown text. Do NOT wrap the entire comment in triple backticks or code blocks. Headings, bold, lists, and inline code are fine.
+
 <!-- gh-aw-pr-review-synthesis -->
 <!-- gh-aw-review-aggregator -->
 
 **Action 2 — Apply labels:**
 
-```json
-{"add_labels": {"item_number": ${{ inputs.pr_number }}, "labels": ["ai:low-confidence", "ai:needs-iteration"]}}
-```
+Call `add_labels` with `item_number` = ${{ inputs.pr_number }} and `labels` = your validated label array.
 
 ## Worked Example
 
