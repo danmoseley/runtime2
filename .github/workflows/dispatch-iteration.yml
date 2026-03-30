@@ -77,11 +77,24 @@ jobs:
         run: |
           PR_NUM="${{ steps.get-pr.outputs.pr_number }}"
 
-          # Only extract from trusted reviewer comments (author + marker validation)
+          # Find timestamp of most recent review cycle — use last ai:iteration-N label
+          # or last ai:needs-iteration label as baseline. Only extract comments after that.
+          BASELINE_TS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/timeline?per_page=100" \
+            --jq '[.[] | select(.event == "labeled" and (.label.name | test("^ai:(needs-iteration|iteration-)")))
+                  ] | sort_by(.created_at) | last | .created_at // empty')
+
+          if [ -z "$BASELINE_TS" ]; then
+            # No iteration labels found — use 24h ago as safe fallback
+            BASELINE_TS=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          fi
+          echo "Extracting instructions from comments after: $BASELINE_TS"
+
+          # Only extract from trusted reviewer comments (author + marker + freshness)
           TRUSTED_AUTHORS='github-actions[bot]'
           BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
             --jq "[.[] | select(
               (.user.login == \"${TRUSTED_AUTHORS}\") and
+              (.created_at > \"${BASELINE_TS}\") and
               (.body | (contains(\"gh-aw-agentic-workflow:\") or contains(\"gh-aw-security-review\") or contains(\"gh-aw-review-aggregator\")))
             )] | map(.body) | join(\"\n\n---\n\n\") // empty")
 

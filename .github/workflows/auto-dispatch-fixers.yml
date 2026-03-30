@@ -72,6 +72,20 @@ jobs:
               continue
             fi
 
+            # Validate extracted parameters to prevent injection
+            if ! [[ "$ISSUE_NUM" =~ ^[0-9]+$ ]]; then
+              echo "Invalid issue_number '$ISSUE_NUM', skipping"
+              continue
+            fi
+            if ! [[ "$LIBRARY" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              echo "Invalid library name '$LIBRARY', skipping"
+              continue
+            fi
+            if [ -n "$TEST_PROJECT" ] && ! [[ "$TEST_PROJECT" =~ ^[A-Za-z0-9./_-]+$ ]]; then
+              echo "Invalid test_project '$TEST_PROJECT', skipping"
+              continue
+            fi
+
             echo "Dispatching fixer for issue #$ISSUE_NUM (library: $LIBRARY)"
 
             # Use the lock.yml (compiled workflow) for dispatch
