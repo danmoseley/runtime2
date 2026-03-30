@@ -173,7 +173,28 @@ jobs:
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
           fi
-
+
+      - name: Check daily run budget
+        if: steps.find-pr.outputs.found == 'true'
+        id: budget-check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DAILY_RUN_LIMIT: 20
+        run: |
+          # Cost guardrail: limit total orchestrator runs per day to prevent runaway costs.
+          # Each run dispatches 3 review agents + 1 aggregator + potentially 1 iteration.
+          TODAY=$(date -u +%Y-%m-%dT00:00:00Z)
+          RUN_COUNT=$(gh api "repos/${{ github.repository }}/actions/workflows/review-orchestrator.yml/runs?created=>=$TODAY&per_page=100" \
+            --jq '.total_count')
+          echo "Orchestrator runs today: $RUN_COUNT (limit: $DAILY_RUN_LIMIT)"
+
+          if [ "$RUN_COUNT" -ge "$DAILY_RUN_LIMIT" ]; then
+            echo "::error::Daily run budget exceeded ($RUN_COUNT >= $DAILY_RUN_LIMIT). Stopping to prevent cost overrun."
+            echo "budget_ok=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "budget_ok=true" >> "$GITHUB_OUTPUT"
+
       - name: Capture pre-dispatch timestamp
         if: steps.find-pr.outputs.found == 'true'
         id: pre-dispatch
