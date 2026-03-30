@@ -3,6 +3,8 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
@@ -44,6 +46,40 @@ namespace System.IO.Pipes.Tests
                     client.ConnectAsync(TimeSpan.FromMilliseconds(60),
                         ctx.Token)); // testing Token overload; ctx is not canceled in this test
             }
+        }
+
+        [Fact]
+        [PlatformSpecific(TestPlatforms.AnyUnix)]
+        [SkipOnPlatform(TestPlatforms.iOS | TestPlatforms.tvOS, "iOS/tvOS blocks binding to UNIX sockets")]
+        public void ConnectToNonExistentServer_Unix_NoSocketExceptionsThrown()
+        {
+            // Verify that connecting to a non-existent named pipe on Unix does not throw excessive
+            // SocketExceptions (which would trigger AppDomain.FirstChanceException unnecessarily).
+            // When the socket file doesn't exist, TryConnect should return false without throwing.
+            int socketExceptionCount = 0;
+            EventHandler<FirstChanceExceptionEventArgs> handler = (_, e) =>
+            {
+                if (e.Exception is SocketException se &&
+                    se.SocketErrorCode == SocketError.AddressNotAvailable)
+                {
+                    Interlocked.Increment(ref socketExceptionCount);
+                }
+            };
+
+            AppDomain.CurrentDomain.FirstChanceException += handler;
+            try
+            {
+                using (NamedPipeClientStream client = new NamedPipeClientStream(".", Path.GetRandomFileName()))
+                {
+                    Assert.Throws<TimeoutException>(() => client.Connect(100));
+                }
+            }
+            finally
+            {
+                AppDomain.CurrentDomain.FirstChanceException -= handler;
+            }
+
+            Assert.Equal(0, socketExceptionCount);
         }
 
         [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsMultithreadingSupported))]

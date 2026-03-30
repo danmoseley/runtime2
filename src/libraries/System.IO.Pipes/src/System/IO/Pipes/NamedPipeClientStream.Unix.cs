@@ -35,11 +35,21 @@ namespace System.IO.Pipes
             // either succeeding immediately if the server is listening or failing
             // immediately if it isn't.  The only delay will be between the time the server
             // has called Bind and Listen, with the latter immediately following the former.
+
+            // If the socket file doesn't exist yet, return false immediately rather than
+            // attempting to connect and throwing a SocketException (ENOENT maps to
+            // SocketError.AddressNotAvailable). This avoids excessive FirstChanceException
+            // notifications when the server hasn't started yet.
+            if (!Path.Exists(_normalizedPipePath))
+            {
+                return false;
+            }
+
             var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
             SafePipeHandle? clientHandle = null;
             try
             {
-                socket.Connect(new UnixDomainSocketEndPoint(_normalizedPipePath!));
+                socket.Connect(new UnixDomainSocketEndPoint(_normalizedPipePath));
                 clientHandle = new SafePipeHandle(socket);
                 ConfigureSocket(socket, clientHandle, _direction, 0, 0, _inheritability);
             }
