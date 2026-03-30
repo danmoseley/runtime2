@@ -255,7 +255,7 @@ jobs:
             fi
 
             if [ "$SR_DONE" = "false" ]; then
-              SR_FOUND=$(echo "$COMMENTS" | jq '[.[] | select(.body | contains("gh-aw-security-review"))] | length')
+              SR_FOUND=$(echo "$COMMENTS" | jq '[.[] | select(.body | contains("gh-aw-agentic-workflow: Security Review"))] | length')
               if [ "$SR_FOUND" -gt 0 ]; then
                 SR_DONE=true
                 echo "✅ Security Review comment found (trusted, post-dispatch)"
@@ -332,7 +332,7 @@ jobs:
           for i in $(seq 1 20); do
             sleep 30
             FOUND=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-              --jq "[.[] | select(.user.login == \"github-actions[bot]\" and .created_at > \"$AGG_TS\" and (.body | contains(\"gh-aw-review-aggregator\")))] | length" 2>/dev/null || echo "0")
+              --jq "[.[] | select(.user.login == \"github-actions[bot]\" and .created_at > \"$AGG_TS\" and (.body | contains(\"gh-aw-agentic-workflow: Review Aggregator\")))] | length" 2>/dev/null || echo "0")
             echo "Poll $i/20: trusted post-dispatch aggregator comments=$FOUND"
             if [ "$FOUND" -gt 0 ]; then
               echo "✅ New aggregator comment detected (trusted, post-dispatch)"
@@ -391,14 +391,14 @@ jobs:
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
 
           # Only extract from trusted reviewer comments:
-          # 1. Must contain a trusted HTML marker (gh-aw-agentic-workflow, gh-aw-security-review, gh-aw-review-aggregator)
+          # 1. Must contain the gh-aw-agentic-workflow HTML marker (added by the gh-aw framework)
           # 2. Must be authored by github-actions[bot]
           # This double-check prevents prompt injection even if an attacker can forge HTML comment markers
           TRUSTED_AUTHORS='github-actions[bot]'
           BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
             --jq "[.[] | select(
               (.user.login == \"${TRUSTED_AUTHORS}\") and
-              (.body | (contains(\"gh-aw-agentic-workflow:\") or contains(\"gh-aw-security-review\") or contains(\"gh-aw-review-aggregator\")))
+              (.body | contains(\"gh-aw-agentic-workflow:\"))
             )] | map(.body) | join(\"\n\n---\n\n\") // empty")
 
           if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
