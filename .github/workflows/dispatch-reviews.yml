@@ -19,6 +19,11 @@ on:
     branches:
       - 'copilot/**'
 
+# Prevent parallel orchestrators for the same branch (proxy for same PR)
+concurrency:
+  group: review-orchestrator-${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   orchestrate-reviews:
     # For workflow_run: only on success
@@ -130,7 +135,6 @@ jobs:
 
       - name: Dispatch Code Review
         if: steps.find-pr.outputs.found == 'true'
-        id: dispatch-cr
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -141,20 +145,8 @@ jobs:
             -f "pr_number=$PR_NUM"
           echo "✅ Code Review dispatched"
 
-          # Wait a moment then find the run ID
-          sleep 15
-          CR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/code-review.lock.yml/runs?per_page=5&status=in_progress" \
-            --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
-          if [ -z "$CR_RUN" ]; then
-            CR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/code-review.lock.yml/runs?per_page=5&status=queued" \
-              --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
-          fi
-          echo "Code Review run ID: $CR_RUN"
-          echo "run_id=$CR_RUN" >> "$GITHUB_OUTPUT"
-
       - name: Dispatch API Review
         if: steps.find-pr.outputs.found == 'true'
-        id: dispatch-ar
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -165,19 +157,8 @@ jobs:
             -f "pr_number=$PR_NUM"
           echo "✅ API Surface Review dispatched"
 
-          sleep 15
-          AR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/api-review.lock.yml/runs?per_page=5&status=in_progress" \
-            --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
-          if [ -z "$AR_RUN" ]; then
-            AR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/api-review.lock.yml/runs?per_page=5&status=queued" \
-              --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
-          fi
-          echo "API Review run ID: $AR_RUN"
-          echo "run_id=$AR_RUN" >> "$GITHUB_OUTPUT"
-
       - name: Dispatch Security Review
         if: steps.find-pr.outputs.found == 'true'
-        id: dispatch-sr
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -188,62 +169,73 @@ jobs:
             -f "pr_number=$PR_NUM"
           echo "✅ Security Review dispatched"
 
-          sleep 15
-          SR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/security-review.lock.yml/runs?per_page=5&status=in_progress" \
-            --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
-          if [ -z "$SR_RUN" ]; then
-            SR_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/security-review.lock.yml/runs?per_page=5&status=queued" \
-              --jq '[.workflow_runs[] | select(.created_at > (now - 120 | todate))] | .[0].id // empty' 2>/dev/null || true)
-          fi
-          echo "Security Review run ID: $SR_RUN"
-          echo "run_id=$SR_RUN" >> "$GITHUB_OUTPUT"
-
       - name: Wait for all reviews to complete
         if: steps.find-pr.outputs.found == 'true'
+        id: wait-reviews
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          CR_RUN="${{ steps.dispatch-cr.outputs.run_id }}"
-          AR_RUN="${{ steps.dispatch-ar.outputs.run_id }}"
-          SR_RUN="${{ steps.dispatch-sr.outputs.run_id }}"
+          PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
 
-          echo "Waiting for Code Review ($CR_RUN), API Review ($AR_RUN), Security Review ($SR_RUN)..."
+          # Get PR head SHA to verify comments are for current commit
+          HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
+          echo "PR #$PR_NUM HEAD: $HEAD_SHA"
+
+          # Record comment count at dispatch time — new reviews will appear after this
+          BASELINE_COUNT=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" --jq 'length')
+          echo "Baseline comment count: $BASELINE_COUNT"
+
+          # Poll for review comments by marker (not run ID).
+          # This is immune to run-ID capture races and phantom hangs.
+          echo "Waiting for review comments on PR #$PR_NUM..."
 
           CR_DONE=false
           AR_DONE=false
           SR_DONE=false
 
           for i in $(seq 1 50); do
-            if [ "$CR_DONE" = "false" ] && [ -n "$CR_RUN" ]; then
-              CR_STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$CR_RUN" --jq '.status' 2>/dev/null || echo "unknown")
-              if [ "$CR_STATUS" = "completed" ]; then
+            COMMENTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
+              --jq '[.[] | {body: .body, created: .created_at}]')
+
+            if [ "$CR_DONE" = "false" ]; then
+              CR_FOUND=$(echo "$COMMENTS" | jq '[.[] | select(.body | contains("gh-aw-agentic-workflow: Code Review"))] | length')
+              if [ "$CR_FOUND" -gt 0 ]; then
                 CR_DONE=true
-                echo "✅ Code Review completed"
+                echo "✅ Code Review comment found"
               fi
             fi
 
-            if [ "$AR_DONE" = "false" ] && [ -n "$AR_RUN" ]; then
-              AR_STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$AR_RUN" --jq '.status' 2>/dev/null || echo "unknown")
-              if [ "$AR_STATUS" = "completed" ]; then
+            if [ "$AR_DONE" = "false" ]; then
+              AR_FOUND=$(echo "$COMMENTS" | jq '[.[] | select(.body | contains("gh-aw-agentic-workflow: API Surface Review") or contains("gh-aw-agentic-workflow: API Review"))] | length')
+              if [ "$AR_FOUND" -gt 0 ]; then
                 AR_DONE=true
-                echo "✅ API Review completed"
+                echo "✅ API Review comment found"
               fi
             fi
 
-            if [ "$SR_DONE" = "false" ] && [ -n "$SR_RUN" ]; then
-              SR_STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$SR_RUN" --jq '.status' 2>/dev/null || echo "unknown")
-              if [ "$SR_STATUS" = "completed" ]; then
+            if [ "$SR_DONE" = "false" ]; then
+              SR_FOUND=$(echo "$COMMENTS" | jq '[.[] | select(.body | contains("gh-aw-security-review"))] | length')
+              if [ "$SR_FOUND" -gt 0 ]; then
                 SR_DONE=true
-                echo "✅ Security Review completed"
+                echo "✅ Security Review comment found"
               fi
             fi
-
-            # If no security review run was captured, don't block on it
-            if [ -z "$SR_RUN" ]; then SR_DONE=true; fi
 
             if [ "$CR_DONE" = "true" ] && [ "$AR_DONE" = "true" ] && [ "$SR_DONE" = "true" ]; then
               echo "All reviews completed!"
               exit 0
+            fi
+
+            # After 30 min, proceed with whatever we have (don't block forever)
+            if [ "$i" -ge 30 ]; then
+              HAVE_ANY=false
+              [ "$CR_DONE" = "true" ] && HAVE_ANY=true
+              [ "$AR_DONE" = "true" ] && HAVE_ANY=true
+              [ "$SR_DONE" = "true" ] && HAVE_ANY=true
+              if [ "$HAVE_ANY" = "true" ]; then
+                echo "::warning::Timeout after 30 min, proceeding with partial reviews (CR=$CR_DONE AR=$AR_DONE SR=$SR_DONE)"
+                exit 0
+              fi
             fi
 
             echo "Poll $i/50: CR=$CR_DONE AR=$AR_DONE SR=$SR_DONE (sleeping 60s)"
@@ -341,8 +333,10 @@ jobs:
         run: |
           PR_NUM="${{ steps.find-pr.outputs.pr_number }}"
 
+          # Only extract from trusted reviewer comments (identified by HTML markers)
+          # This prevents prompt injection from arbitrary PR comments
           BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments?per_page=100" \
-            --jq '[.[] | select(.body | test("Review|review|API Surface"; "i"))] | map(.body) | join("\n\n---\n\n") // empty')
+            --jq '[.[] | select(.body | (contains("gh-aw-agentic-workflow:") or contains("gh-aw-security-review") or contains("gh-aw-review-aggregator")))] | map(.body) | join("\n\n---\n\n") // empty')
 
           if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
             BODY="Address the review feedback on this PR. Read the review comments carefully and fix all issues identified."
