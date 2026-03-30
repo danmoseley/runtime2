@@ -26,10 +26,11 @@ on:
     branches:
       - 'copilot/**'
 
-# Prevent parallel orchestrators for the same branch (proxy for same PR)
+# Prevent parallel orchestrators for the same branch/PR. Cancel stale runs
+# so a newer push doesn't race with an older orchestrator.
 concurrency:
-  group: review-orchestrator-${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
-  cancel-in-progress: false
+  group: review-orchestrator-${{ github.event.workflow_run.head_branch || inputs.pr_number || github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   orchestrate-reviews:
