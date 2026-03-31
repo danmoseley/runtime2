@@ -1,0 +1,22 @@
+name: Test PAT @copilot Trigger
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to comment on'
+        required: true
+        type: number
+
+jobs:
+  post-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post @copilot comment using PAT
+        env:
+          GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
+        run: |
+          echo "Posting @copilot comment on PR #${{ inputs.pr_number }} using PAT..."
+          gh api "repos/${{ github.repository }}/issues/${{ inputs.pr_number }}/comments" \
+            --method POST \
+            -f body="@copilot please address the review feedback on this PR."
+          echo "Comment posted. Check if copilot_work_started event fires."
