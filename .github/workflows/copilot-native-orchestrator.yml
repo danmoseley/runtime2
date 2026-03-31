@@ -1,0 +1,313 @@
+name: Copilot-Native Review Loop
+
+# Drives the Copilot review → @copilot fix → re-review loop automatically.
+# Uses Copilot's native reviewer and fixer — no custom AWF agents.
+
+on:
+  pull_request:
+    types: [ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: number
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  review-loop:
+    # Only run on Copilot-authored PRs (or manual dispatch)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.user.login == 'copilot-swe-agent[bot]' &&
+       !github.event.pull_request.draft)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Resolve PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Determine iteration count from labels ──
+      - name: Get iteration count
+        id: iter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          LABELS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --jq '[.[].name] | join(",")')
+          
+          # Count existing iteration labels
+          COUNT=0
+          for i in 1 2 3 4 5; do
+            if echo "$LABELS" | grep -q "ai:iteration-$i"; then
+              COUNT=$i
+            fi
+          done
+          echo "current=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "📊 Current iteration: $COUNT"
+          
+          if [ "$COUNT" -ge 3 ]; then
+            echo "max_reached=true" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Max iterations (3) reached"
+          else
+            echo "max_reached=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Max iterations: escalate to human ──
+      - name: Escalate if max iterations
+        if: steps.iter.outputs.max_reached == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --method POST -f "labels[]=ai:needs-human" || true
+          gh pr comment "$PR_NUM" -R "${{ github.repository }}" \
+            --body "## ⚠️ Max iterations reached
+
+          This PR has been through 3 review→fix cycles without fully converging.
+          A human should review the remaining feedback and decide next steps.
+
+          > [!NOTE]
+          > Posted by the Copilot-Native Review Loop orchestrator."
+          echo "Escalated to human. Stopping."
+
+      # ── Phase 1: Request Copilot Review (2x) ──
+      - name: Request Copilot reviews
+        if: steps.iter.outputs.max_reached != 'true'
+        id: request-review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          
+          # Record timestamp before requesting reviews
+          BEFORE_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "before_ts=$BEFORE_TS" >> "$GITHUB_OUTPUT"
+          echo "⏱️ Pre-review timestamp: $BEFORE_TS"
+          
+          # Request Copilot review — first pass
+          echo "📝 Requesting Copilot review (pass 1)..."
+          gh api "repos/${{ github.repository }}/pulls/$PR_NUM/requested_reviewers" \
+            --method POST -f "reviewers[]=copilot-pull-request-reviewer[bot]" \
+            --jq '.url' || echo "::warning::First review request failed"
+          
+          # Short wait, then request again for non-deterministic coverage
+          sleep 5
+
+      # ── Wait for first review to complete ──
+      - name: Wait for Copilot review
+        if: steps.iter.outputs.max_reached != 'true'
+        id: wait-review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          BEFORE_TS="${{ steps.request-review.outputs.before_ts }}"
+          
+          echo "⏳ Waiting for Copilot review on PR #$PR_NUM..."
+          
+          for i in $(seq 1 30); do
+            # Check for new Copilot reviews since our request
+            REVIEWS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM/reviews" \
+              --jq "[.[] | select(.user.login == \"copilot-pull-request-reviewer[bot]\" and .submitted_at > \"$BEFORE_TS\")] | length")
+            
+            if [ "$REVIEWS" -gt 0 ]; then
+              echo "✅ Copilot review found ($REVIEWS review(s))"
+              break
+            fi
+            
+            echo "Poll $i/30: no review yet (sleeping 30s)"
+            sleep 30
+          done
+          
+          if [ "$REVIEWS" -eq 0 ]; then
+            echo "::warning::Timed out waiting for Copilot review (15 min)"
+            echo "timed_out=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          
+          echo "timed_out=false" >> "$GITHUB_OUTPUT"
+          
+          # Now request 2nd review for non-deterministic coverage
+          echo "📝 Requesting Copilot review (pass 2)..."
+          gh api "repos/${{ github.repository }}/pulls/$PR_NUM/requested_reviewers" \
+            --method POST -f "reviewers[]=copilot-pull-request-reviewer[bot]" \
+            --jq '.url' || true
+          
+          # Wait for 2nd review
+          AFTER_FIRST=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          sleep 10
+          for j in $(seq 1 15); do
+            REVIEWS2=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM/reviews" \
+              --jq "[.[] | select(.user.login == \"copilot-pull-request-reviewer[bot]\" and .submitted_at > \"$AFTER_FIRST\")] | length")
+            if [ "$REVIEWS2" -gt 0 ]; then
+              echo "✅ Second Copilot review found"
+              break
+            fi
+            echo "Poll pass2 $j/15 (sleeping 20s)"
+            sleep 20
+          done
+
+      # ── Check review results ──
+      - name: Check for review comments
+        if: steps.iter.outputs.max_reached != 'true' && steps.wait-review.outputs.timed_out != 'true'
+        id: check-comments
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          BEFORE_TS="${{ steps.request-review.outputs.before_ts }}"
+          
+          # Get all Copilot review comments from this round
+          COMMENT_COUNT=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM/comments" \
+            --jq "[.[] | select(.user.login == \"copilot-pull-request-reviewer[bot]\" and .created_at > \"$BEFORE_TS\")] | length")
+          
+          echo "💬 Copilot review comments this round: $COMMENT_COUNT"
+          
+          if [ "$COMMENT_COUNT" -eq 0 ]; then
+            echo "has_comments=false" >> "$GITHUB_OUTPUT"
+            echo "✅ Clean review — no comments!"
+          else
+            echo "has_comments=true" >> "$GITHUB_OUTPUT"
+            echo "comment_count=$COMMENT_COUNT" >> "$GITHUB_OUTPUT"
+            
+            # Log the comments for visibility
+            echo "--- Review comments ---"
+            gh api "repos/${{ github.repository }}/pulls/$PR_NUM/comments" \
+              --jq "[.[] | select(.user.login == \"copilot-pull-request-reviewer[bot]\" and .created_at > \"$BEFORE_TS\")] | .[] | \"[\(.path):\(.line // \"general\")] \(.body[:150])\"" || true
+          fi
+
+      # ── Clean: label ready-for-human ──
+      - name: Label ready for human
+        if: >-
+          steps.iter.outputs.max_reached != 'true' && 
+          steps.check-comments.outputs.has_comments == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          
+          # Add ready label
+          gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --method POST -f "labels[]=ai:ready-for-human" || true
+          
+          # Post summary
+          ITER="${{ steps.iter.outputs.current }}"
+          gh pr comment "$PR_NUM" -R "${{ github.repository }}" \
+            --body "## ✅ Copilot Review Clean
+
+          Copilot reviewer found no issues after $ITER iteration(s).
+          This PR is ready for human review and merge.
+
+          > [!NOTE]
+          > Posted by the Copilot-Native Review Loop orchestrator."
+          
+          echo "🎉 PR #$PR_NUM is ready for human review!"
+
+      # ── Has comments: trigger @copilot fix ──
+      - name: Trigger Copilot fix
+        if: >-
+          steps.iter.outputs.max_reached != 'true' && 
+          steps.check-comments.outputs.has_comments == 'true'
+        id: trigger-fix
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          ITER="${{ steps.iter.outputs.current }}"
+          NEXT_ITER=$((ITER + 1))
+          
+          # Add iteration label
+          gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --method POST -f "labels[]=ai:iteration-$NEXT_ITER" \
+            --jq '.[].name' 2>/dev/null || true
+          
+          # Capture current head SHA before fix
+          OLD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
+          echo "old_sha=$OLD_SHA" >> "$GITHUB_OUTPUT"
+          echo "🔧 Triggering @copilot fix (iteration $NEXT_ITER), current SHA: ${OLD_SHA:0:8}"
+          
+          # Post @copilot comment using PAT (must be from a real user, not a bot)
+          gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments" \
+            --method POST \
+            -f body="@copilot please address all the review feedback on this PR. Fix each issue raised by the reviewer."
+          
+          echo "✅ @copilot fix triggered"
+
+      # ── Wait for Copilot to push ──
+      - name: Wait for Copilot push
+        if: >-
+          steps.iter.outputs.max_reached != 'true' && 
+          steps.check-comments.outputs.has_comments == 'true'
+        id: wait-push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          OLD_SHA="${{ steps.trigger-fix.outputs.old_sha }}"
+          
+          echo "⏳ Waiting for Copilot to push (current: ${OLD_SHA:0:8})..."
+          
+          for i in $(seq 1 90); do
+            NEW_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
+            if [ "$NEW_SHA" != "$OLD_SHA" ]; then
+              echo "✅ New commit detected: ${NEW_SHA:0:8}"
+              echo "new_sha=$NEW_SHA" >> "$GITHUB_OUTPUT"
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
+              
+              # Wait a bit for any follow-up commits
+              sleep 30
+              FINAL_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM" --jq '.head.sha')
+              echo "Final SHA: ${FINAL_SHA:0:8}"
+              exit 0
+            fi
+            
+            # Check for copilot_work_started to confirm it's working
+            if [ "$i" -eq 5 ]; then
+              EVENTS=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/events" \
+                --jq '[.[] | select(.event == "copilot_work_started")] | length')
+              if [ "$EVENTS" -eq 0 ]; then
+                echo "::warning::No copilot_work_started event after 2.5 min — Copilot may not have picked up the request"
+              fi
+            fi
+            
+            echo "Poll $i/90: SHA unchanged (sleeping 30s)"
+            sleep 30
+          done
+          
+          echo "::warning::Copilot did not push within 45 min"
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+          
+          # Label as stalled
+          gh api "repos/${{ github.repository }}/issues/$PR_NUM/labels" \
+            --method POST -f "labels[]=ai:iteration-stalled" || true
+
+      # ── Re-dispatch self for next iteration ──
+      - name: Re-dispatch for next iteration
+        if: >-
+          steps.iter.outputs.max_reached != 'true' && 
+          steps.check-comments.outputs.has_comments == 'true' &&
+          steps.wait-push.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          echo "♻️ Re-dispatching review loop for next iteration..."
+          
+          gh workflow run copilot-native-orchestrator.yml \
+            -R "${{ github.repository }}" \
+            -f "pr_number=$PR_NUM"
+          
+          echo "✅ Next iteration dispatched"
