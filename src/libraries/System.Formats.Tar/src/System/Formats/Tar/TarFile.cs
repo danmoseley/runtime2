@@ -440,7 +440,7 @@ namespace System.Formats.Tar
 
             if (!Directory.Exists(destinationDirectoryName))
             {
-                throw new DirectoryNotFoundException(SR.Format(SR.IO_PathNotFound_Path, destinationDirectoryName));
+                throw new DirectoryNotFoundException(null, destinationDirectoryName);
             }
 
             using FileStream archive = File.OpenRead(sourceFileName);
@@ -509,7 +509,7 @@ namespace System.Formats.Tar
 
             if (!Directory.Exists(destinationDirectoryName))
             {
-                return Task.FromException(new DirectoryNotFoundException(SR.Format(SR.IO_PathNotFound_Path, destinationDirectoryName)));
+                return Task.FromException(new DirectoryNotFoundException(null, destinationDirectoryName));
             }
 
             return ExtractToDirectoryInternalAsync(sourceFileName, destinationDirectoryName, options, cancellationToken);

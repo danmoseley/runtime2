@@ -35,6 +35,11 @@ namespace System.IO
             HResult = HResults.COR_E_DIRECTORYNOTFOUND;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DirectoryNotFoundException"/> class with a specified error message and the directory path that cannot be found.
+        /// </summary>
+        /// <param name="message">A message that describes the error.</param>
+        /// <param name="directoryPath">The full name of the directory that cannot be found.</param>
         public DirectoryNotFoundException(string? message, string? directoryPath)
             : base(message)
         {
@@ -42,6 +47,12 @@ namespace System.IO
             DirectoryPath = directoryPath;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DirectoryNotFoundException"/> class with a specified error message, the directory path that cannot be found, and a reference to the inner exception that is the cause of this exception.
+        /// </summary>
+        /// <param name="message">A message that describes the error.</param>
+        /// <param name="directoryPath">The full name of the directory that cannot be found.</param>
+        /// <param name="innerException">The exception that is the cause of the current exception.</param>
         public DirectoryNotFoundException(string? message, string? directoryPath, Exception? innerException)
             : base(message, innerException)
         {
@@ -66,6 +77,7 @@ namespace System.IO
             }
         }
 
+        /// <summary>Gets the directory path that cannot be found.</summary>
         public string? DirectoryPath { get; }
 
         public override string ToString()
@@ -92,9 +104,6 @@ namespace System.IO
             DirectoryPath = info.GetString(nameof(DirectoryPath));
         }
 
-        /// <summary>
-        /// Overrides GetObjectData to serialize DirectoryPath, matching FileNotFoundException pattern.
-        /// </summary>
         [Obsolete(Obsoletions.LegacyFormatterImplMessage, DiagnosticId = Obsoletions.LegacyFormatterImplDiagId, UrlFormat = Obsoletions.SharedUrlFormat)]
         [EditorBrowsable(EditorBrowsableState.Never)]
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
