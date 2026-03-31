@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Post @copilot comment using PAT
         env:
-          GH_TOKEN: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
           echo "Posting @copilot comment on PR #${{ inputs.pr_number }} using PAT..."
           gh api "repos/${{ github.repository }}/issues/${{ inputs.pr_number }}/comments" \
