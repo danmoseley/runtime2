@@ -56,11 +56,13 @@ namespace System.IO.Pipes.Tests
             // Verify that connecting to a non-existent named pipe on Unix does not throw excessive
             // SocketExceptions (which would trigger AppDomain.FirstChanceException unnecessarily).
             // When the socket file doesn't exist, TryConnect should return false without throwing.
+            string pipeName = PipeStreamConformanceTests.GetUniquePipeName();
             int socketExceptionCount = 0;
             EventHandler<FirstChanceExceptionEventArgs> handler = (_, e) =>
             {
                 if (e.Exception is SocketException se &&
-                    se.SocketErrorCode == SocketError.AddressNotAvailable)
+                    se.SocketErrorCode == SocketError.AddressNotAvailable &&
+                    se.Message.Contains(pipeName))
                 {
                     Interlocked.Increment(ref socketExceptionCount);
                 }
@@ -69,7 +71,7 @@ namespace System.IO.Pipes.Tests
             AppDomain.CurrentDomain.FirstChanceException += handler;
             try
             {
-                using (NamedPipeClientStream client = new NamedPipeClientStream(".", Path.GetRandomFileName()))
+                using (NamedPipeClientStream client = new NamedPipeClientStream(".", pipeName))
                 {
                     Assert.Throws<TimeoutException>(() => client.Connect(100));
                 }

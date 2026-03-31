@@ -36,11 +36,14 @@ namespace System.IO.Pipes
             // immediately if it isn't.  The only delay will be between the time the server
             // has called Bind and Listen, with the latter immediately following the former.
 
-            // If the socket file doesn't exist yet, return false immediately rather than
-            // attempting to connect and throwing a SocketException (ENOENT maps to
-            // SocketError.AddressNotAvailable). This avoids excessive FirstChanceException
-            // notifications when the server hasn't started yet.
-            if (!Path.Exists(_normalizedPipePath))
+            // If the socket path doesn't exist yet (ENOENT), return false immediately rather
+            // than attempting to connect and throwing a SocketException. This avoids excessive
+            // FirstChanceException notifications when the server hasn't started yet.
+            // Using LStat directly (rather than Path.Exists) means only ENOENT short-circuits
+            // the loop; other errors (e.g., EACCES) still reach socket.Connect() and surface as
+            // the appropriate non-retryable exception.
+            if (Interop.Sys.LStat(_normalizedPipePath!, out Interop.Sys.FileStatus _) != 0 &&
+                Interop.Sys.GetLastError() == Interop.Error.ENOENT)
             {
                 return false;
             }
@@ -49,7 +52,7 @@ namespace System.IO.Pipes
             SafePipeHandle? clientHandle = null;
             try
             {
-                socket.Connect(new UnixDomainSocketEndPoint(_normalizedPipePath));
+                socket.Connect(new UnixDomainSocketEndPoint(_normalizedPipePath!));
                 clientHandle = new SafePipeHandle(socket);
                 ConfigureSocket(socket, clientHandle, _direction, 0, 0, _inheritability);
             }
